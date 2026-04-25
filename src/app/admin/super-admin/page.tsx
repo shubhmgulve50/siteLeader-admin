@@ -419,8 +419,7 @@ interface BuilderCardProps {
   onDelete: (b: Builder) => void;
 }
 
-function BuilderCard({ builder: b, isMobile, actionLoading, onApprove, onDeny, onSuspend, onReinstate, onVerifyEmail, onPermissions, onDelete }: BuilderCardProps) {
-  const theme = useTheme();
+function BuilderCard({ builder: b, actionLoading, onApprove, onDeny, onSuspend, onReinstate, onVerifyEmail, onPermissions, onDelete }: BuilderCardProps) {
   const isPending = b.verificationStatus === "PENDING";
   const isApproved = b.verificationStatus === "APPROVED";
   const isDeniedOrSuspended = b.verificationStatus === "DENIED" || b.verificationStatus === "SUSPENDED";

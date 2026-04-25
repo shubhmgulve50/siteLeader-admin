@@ -32,8 +32,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import GenericTable from "@/components/common/GenericTable";
 import GlassFab from "@/components/common/GlassFab";
@@ -116,8 +114,6 @@ const STATUS_COLORS: Record<string, "default" | "primary" | "warning" | "success
 };
 
 export default function RaBillsPage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [bills, setBills] = useState<RaBill[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);

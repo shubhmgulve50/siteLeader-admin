@@ -52,7 +52,7 @@ import PageHeaderWithActions from "@/components/PageHeaderWithActions";
 import apiEndpoints from "@/constants/apiEndpoints";
 import api from "@/lib/axios";
 import { useT } from "@/i18n/LocaleProvider";
-import { HEADER_BTN_SX, HEADER_ICON_BTN_SX, TABLE_HEAD_SX } from "@/styles/tokens";
+import { HEADER_ICON_BTN_SX, TABLE_HEAD_SX } from "@/styles/tokens";
 
 interface Material {
   _id: string;

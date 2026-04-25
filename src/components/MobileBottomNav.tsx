@@ -120,7 +120,7 @@ export default function MobileBottomNav() {
             },
           }}
         >
-          {PRIMARY_NAV.map((item, idx) => (
+          {PRIMARY_NAV.map((item) => (
             <BottomNavigationAction
               key={item.id}
               label={labelOf(item)}
