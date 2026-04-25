@@ -8,7 +8,6 @@ import {
   Edit as EditIcon,
   Engineering as EngineeringIcon,
   Phone as PhoneIcon,
-  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import {
   Alert,
@@ -27,10 +26,7 @@ import {
   Select,
   TextField,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import GlassFab from "@/components/common/GlassFab";
 import GenericTable from "@/components/common/GenericTable";
 import PageHeaderWithActions from "@/components/PageHeaderWithActions";
@@ -67,8 +63,6 @@ const LABOUR_TYPES = [
 
 export default function LabourPage() {
   const t = useT();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [labours, setLabours] = useState<Labour[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);

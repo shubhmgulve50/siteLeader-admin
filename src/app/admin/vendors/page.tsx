@@ -33,8 +33,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import GlassFab from "@/components/common/GlassFab";
@@ -80,8 +78,6 @@ const CATEGORIES: { value: Category; label: string }[] = [
 const categoryLabel = (v?: string) => CATEGORIES.find((c) => c.value === v)?.label || v;
 
 export default function VendorsPage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");

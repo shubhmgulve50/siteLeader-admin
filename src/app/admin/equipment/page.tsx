@@ -39,8 +39,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import GlassFab from "@/components/common/GlassFab";
@@ -125,8 +123,6 @@ const STATUS_COLORS: Record<Status, "default" | "success" | "warning" | "error">
 };
 
 export default function EquipmentPage() {
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [summary, setSummary] = useState({

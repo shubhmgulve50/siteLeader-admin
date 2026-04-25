@@ -33,8 +33,6 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import GenericTable from "@/components/common/GenericTable";
 import GlassFab from "@/components/common/GlassFab";
@@ -100,8 +98,6 @@ const UNITS = ["Sq.Ft", "Sq.Mt", "Cu.Mt", "Brass", "Bags", "Nos", "Kg", "MT", "R
 
 export default function InvoicesPage() {
   const t = useT();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
