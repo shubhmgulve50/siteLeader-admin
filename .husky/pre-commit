@@ -1,0 +1,2 @@
+# Run linting after formatting
+npm run lint

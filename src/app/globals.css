@@ -1,0 +1,18 @@
+/* * {
+  outline: 1px dashed red !important;
+} */
+
+:root {
+  --hover-bg: #cc1928; /* theme.palette.secondary.main */
+  --selected-bg: #e94957; /* theme.palette.primary.main */
+  --range-bg: #fef9f8; /* theme.palette.background.default */
+  --arrow-hover-bg: #d86149; /* theme.palette.background.default */
+  --header-text: #cd2626; /* theme.palette.text.primary */
+  --arrow-border: #457b9d; /* theme.palette.text.secondary */
+  --week-day: #e94957; /* theme.palette.primary.main */
+  --shadow-color: #e94957; /* theme.palette.primary.main */
+  --input-border: #e94957; /* theme.palette.primary.main */
+  --input-bg: #fef9f8; /* theme.palette.background.default */
+  --input-text: #1d3557; /* theme.palette.text.primary */
+  --placeholder-color: #457b9d; /* theme.palette.text.secondary */
+}
