@@ -26,7 +26,7 @@ export default function LogoView({ clickable = true }: LogoViewProps) {
         width={180}
         height={50}
         priority
-        style={{ objectFit: "contain", maxWidth: "100%" }}
+        style={{ objectFit: "contain", maxWidth: "100%", height: "auto" }}
       />
     </Box>
   );

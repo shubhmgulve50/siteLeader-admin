@@ -5,8 +5,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   Cancel as AbsentIcon,
   Add as AddIcon,
+  CalendarMonth as CalendarIcon,
+  CurrencyRupee as AdvanceIcon,
   Schedule as HalfDayIcon,
   CheckCircle as PresentIcon,
+  Print as PrintIcon,
 } from "@mui/icons-material";
 import {
   Box,
@@ -32,11 +35,16 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import apiEndpoints from "@/constants/apiEndpoints";
 import api from "@/lib/axios";
+import { formatINRFull } from "@/utils/format";
+import AttendanceCalendarDialog from "./AttendanceCalendarDialog";
+import { TABLE_HEAD_SX } from "@/styles/tokens";
 
 interface Labour {
   _id: string;
@@ -44,6 +52,27 @@ interface Labour {
   type: string;
   dailyWage: number;
 }
+
+interface SummaryRow {
+  labour: Labour;
+  present: number;
+  halfDay: number;
+  absent: number;
+  totalDays: number;
+  earnings: number;
+  advance: number;
+  balance: number;
+}
+
+interface AttendanceRecord {
+  labourId?: { _id: string };
+  status: string;
+}
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 export default function LabourTab({ siteId }: { siteId: string }) {
   const [siteLabour, setSiteLabour] = useState<Labour[]>([]);
@@ -55,16 +84,30 @@ export default function LabourTab({ siteId }: { siteId: string }) {
   const [selectedToAssign, setSelectedToAssign] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Summary State
-  const [summaryData, setSummaryData] = useState<any[]>([]);
+  const [summaryData, setSummaryData] = useState<SummaryRow[]>([]);
   const [summaryMonth, setSummaryMonth] = useState(new Date().getMonth() + 1);
+  const [summaryYear] = useState(new Date().getFullYear());
   const [loadingSummary, setLoadingSummary] = useState(false);
+
+  // Calendar dialog
+  const [calendarLabour, setCalendarLabour] = useState<Labour | null>(null);
+
+  // Advance dialog
+  const [openAdvance, setOpenAdvance] = useState(false);
+  const [advanceForm, setAdvanceForm] = useState({
+    labourId: "",
+    amount: "",
+    date: new Date().toISOString().substring(0, 10),
+    paymentMode: "Cash" as "Cash" | "UPI" | "Bank" | "Cheque" | "Other",
+    note: "",
+  });
+  const [advanceSaving, setAdvanceSaving] = useState(false);
 
   const fetchSummary = useCallback(async () => {
     setLoadingSummary(true);
     try {
       const res = await api.get(apiEndpoints.sites.attendanceSummary(siteId), {
-        params: { month: summaryMonth, year: new Date().getFullYear() },
+        params: { month: summaryMonth, year: summaryYear },
       });
       setSummaryData(res.data.data);
     } catch {
@@ -72,7 +115,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
     } finally {
       setLoadingSummary(false);
     }
-  }, [siteId, summaryMonth]);
+  }, [siteId, summaryMonth, summaryYear]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -81,31 +124,25 @@ export default function LabourTab({ siteId }: { siteId: string }) {
       const [assignedRes, allRes, attendanceRes] = await Promise.all([
         api.get(apiEndpoints.sites.labour(siteId)),
         api.get(apiEndpoints.labours.base),
-        api.get(apiEndpoints.sites.getAttendance(siteId), { params: { date: today } })
+        api.get(apiEndpoints.sites.getAttendance(siteId), { params: { date: today } }),
       ]);
-      
-      const assigned = assignedRes.data.data;
+
+      const assigned: Labour[] = assignedRes.data.data;
       setSiteLabour(assigned);
       setAllLabour(allRes.data.data);
 
-      // Initialize attendance state
-      // First, set all to "Present" as default
       const initialAttendance: Record<string, string> = {};
-      assigned.forEach((l: Labour) => {
+      assigned.forEach((l) => {
         initialAttendance[l._id] = "Present";
       });
-
-      // Then, overwrite with existing records for today
-      const todayRecords = attendanceRes.data.data;
-      todayRecords.forEach((record: any) => {
+      const todayRecords: AttendanceRecord[] = attendanceRes.data.data;
+      todayRecords.forEach((record) => {
         if (record.labourId?._id) {
           initialAttendance[record.labourId._id] = record.status;
         }
       });
-      
       setAttendance(initialAttendance);
-      
-      // Also fetch summary
+
       fetchSummary();
     } catch {
       toast.error("Failed to load labour data");
@@ -132,9 +169,11 @@ export default function LabourTab({ siteId }: { siteId: string }) {
       });
       toast.success("Labour assigned to site");
       setOpenAssign(false);
+      setSelectedToAssign("");
       fetchData();
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || "Assignment failed");
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || "Assignment failed");
     } finally {
       setSubmitting(false);
     }
@@ -154,7 +193,6 @@ export default function LabourTab({ siteId }: { siteId: string }) {
           date: new Date().toISOString().split("T")[0],
         })
       );
-
       await api.post(apiEndpoints.sites.attendance, {
         siteId,
         attendanceData,
@@ -168,14 +206,52 @@ export default function LabourTab({ siteId }: { siteId: string }) {
     }
   };
 
+  const openAdvanceDialog = (labourId: string) => {
+    setAdvanceForm({
+      labourId,
+      amount: "",
+      date: new Date().toISOString().substring(0, 10),
+      paymentMode: "Cash",
+      note: "",
+    });
+    setOpenAdvance(true);
+  };
+
+  const saveAdvance = async () => {
+    if (!advanceForm.labourId || !advanceForm.amount) {
+      return toast.error("Amount required");
+    }
+    setAdvanceSaving(true);
+    try {
+      await api.post(apiEndpoints.labourAdvances.base, {
+        ...advanceForm,
+        amount: Number(advanceForm.amount),
+        siteId,
+      });
+      toast.success("Advance recorded");
+      setOpenAdvance(false);
+      fetchSummary();
+    } catch {
+      toast.error("Failed to record advance");
+    } finally {
+      setAdvanceSaving(false);
+    }
+  };
+
+  const openRegister = () => {
+    const url = `/admin/labour-register/print?siteId=${siteId}&month=${summaryMonth}&year=${summaryYear}`;
+    window.open(url, "_blank", "noopener");
+  };
+
   if (loading) return <CircularProgress />;
 
   return (
     <Box>
       <Stack
-        direction="row"
+        direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
-        alignItems="center"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        spacing={1.5}
         sx={{ mb: 3 }}
       >
         <Typography variant="h6" sx={{ fontWeight: 800 }}>
@@ -185,7 +261,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => setOpenAssign(true)}
-          sx={{ borderRadius: 2 }}
+          sx={{ borderRadius: 2, width: { xs: "100%", sm: "auto" } }}
         >
           Assign Labour
         </Button>
@@ -197,19 +273,22 @@ export default function LabourTab({ siteId }: { siteId: string }) {
         sx={{ border: "1px solid", borderColor: "grey.200", borderRadius: 3 }}
       >
         <Table>
-          <TableHead sx={{ bgcolor: "grey.50" }}>
+          <TableHead sx={TABLE_HEAD_SX}>
             <TableRow>
               <TableCell sx={{ fontWeight: 700 }}>Labour Name</TableCell>
               <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
               <TableCell sx={{ fontWeight: 700 }} align="center">
                 Daily Attendance
               </TableCell>
+              <TableCell sx={{ fontWeight: 700 }} align="right">
+                Advance
+              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {siteLabour.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                   No labour assigned to this site.
                 </TableCell>
               </TableRow>
@@ -237,9 +316,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
                               ? alpha("#4caf50", 0.1)
                               : "transparent",
                           color:
-                            attendance[l._id] === "Present"
-                              ? "#4caf50"
-                              : "grey.400",
+                            attendance[l._id] === "Present" ? "#4caf50" : "grey.400",
                         }}
                       >
                         <PresentIcon />
@@ -252,9 +329,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
                               ? alpha("#ff9800", 0.1)
                               : "transparent",
                           color:
-                            attendance[l._id] === "Half Day"
-                              ? "#ff9800"
-                              : "grey.400",
+                            attendance[l._id] === "Half Day" ? "#ff9800" : "grey.400",
                         }}
                       >
                         <HalfDayIcon />
@@ -267,14 +342,26 @@ export default function LabourTab({ siteId }: { siteId: string }) {
                               ? alpha("#f44336", 0.1)
                               : "transparent",
                           color:
-                            attendance[l._id] === "Absent"
-                              ? "#f44336"
-                              : "grey.400",
+                            attendance[l._id] === "Absent" ? "#f44336" : "grey.400",
                         }}
                       >
                         <AbsentIcon />
                       </IconButton>
                     </Stack>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Tooltip title="Record Advance">
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        color="warning"
+                        startIcon={<AdvanceIcon fontSize="small" />}
+                        onClick={() => openAdvanceDialog(l._id)}
+                        sx={{ fontWeight: 700, textTransform: "none" }}
+                      >
+                        Advance
+                      </Button>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))
@@ -301,45 +388,41 @@ export default function LabourTab({ siteId }: { siteId: string }) {
       <Box sx={{ mt: 5 }}>
         <Divider sx={{ mb: 4 }} />
         <Stack
-          direction="row"
+          direction={{ xs: "column", md: "row" }}
           justifyContent="space-between"
-          alignItems="center"
+          alignItems={{ xs: "flex-start", md: "center" }}
+          spacing={1.5}
           sx={{ mb: 3 }}
         >
           <Box>
             <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              Attendance & Payroll Summary
+              Attendance &amp; Payroll Summary
             </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontWeight: 600 }}
-            >
-              View monthly aggregation and estimated earnings for all labour.
+            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+              Earnings − Advances = Balance to pay.
             </Typography>
           </Box>
-          <Stack direction="row" spacing={1}>
-            <FormControl size="small" sx={{ minWidth: 120 }}>
-              <Select
-                value={summaryMonth}
-                onChange={(e) => setSummaryMonth(Number(e.target.value))}
-              >
-                {Array.from({ length: 12 }).map((_, i) => (
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <FormControl size="small" sx={{ minWidth: 140 }}>
+              <Select value={summaryMonth} onChange={(e) => setSummaryMonth(Number(e.target.value))}>
+                {MONTHS.map((m, i) => (
                   <MenuItem key={i + 1} value={i + 1}>
-                    {new Date(0, i).toLocaleString("default", {
-                      month: "long",
-                    })}
+                    {m}
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={fetchSummary}
-              disabled={loadingSummary}
-            >
+            <Button variant="outlined" size="small" onClick={fetchSummary} disabled={loadingSummary}>
               Refresh
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
+              startIcon={<PrintIcon />}
+              onClick={openRegister}
+              sx={{ fontWeight: 700 }}
+            >
+              Payment Register
             </Button>
           </Stack>
         </Stack>
@@ -350,108 +433,108 @@ export default function LabourTab({ siteId }: { siteId: string }) {
           sx={{ borderRadius: 3, overflow: "hidden" }}
         >
           <Table size="small">
-            <TableHead sx={{ bgcolor: "grey.50" }}>
+            <TableHead sx={TABLE_HEAD_SX}>
               <TableRow>
                 <TableCell sx={{ fontWeight: 700 }}>Labour</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  P
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  HD
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  A
-                </TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>
-                  Total Days
-                </TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>
-                  Est. Earnings
-                </TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>P</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>HD</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>A</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Total Days</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Earnings</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Advance</TableCell>
+                <TableCell align="right" sx={{ fontWeight: 700 }}>Balance</TableCell>
+                <TableCell align="center" sx={{ fontWeight: 700 }}>Action</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loadingSummary ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                     <CircularProgress size={20} />
                   </TableCell>
                 </TableRow>
               ) : summaryData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
                     No data for this month.
                   </TableCell>
                 </TableRow>
               ) : (
-                summaryData.map((s: any) => (
-                  <TableRow key={s.labour._id}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {s.labour.name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {s.labour.type}
-                      </Typography>
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={s.present}
-                        size="small"
-                        color="success"
-                        sx={{ fontWeight: 700, height: 20 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={s.halfDay}
-                        size="small"
-                        color="warning"
-                        sx={{ fontWeight: 700, height: 20 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <Chip
-                        label={s.absent}
-                        size="small"
-                        color="error"
-                        sx={{ fontWeight: 700, height: 20 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600 }}>
-                      {s.totalDays}
-                    </TableCell>
-                    <TableCell align="right">
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 900, color: "primary.main" }}
-                      >
-                        ₹{s.earnings.toLocaleString()}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))
+                summaryData.map((s) => {
+                  const bal = s.balance ?? (s.earnings - (s.advance || 0));
+                  return (
+                    <TableRow key={s.labour._id}>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                          {s.labour.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {s.labour.type}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip label={s.present} size="small" color="success" sx={{ fontWeight: 700, height: 20 }} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip label={s.halfDay} size="small" color="warning" sx={{ fontWeight: 700, height: 20 }} />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip label={s.absent} size="small" color="error" sx={{ fontWeight: 700, height: 20 }} />
+                      </TableCell>
+                      <TableCell align="center" sx={{ fontWeight: 600 }}>
+                        {s.totalDays}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ fontWeight: 800, color: "primary.main" }}>
+                          {formatINRFull(s.earnings)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: "warning.dark" }}>
+                          {formatINRFull(s.advance || 0)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography variant="body2" sx={{ fontWeight: 900, color: bal >= 0 ? "success.main" : "error.main" }}>
+                          {formatINRFull(bal)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={0.5} justifyContent="center">
+                          <Tooltip title="View calendar">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => setCalendarLabour(s.labour)}
+                            >
+                              <CalendarIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Add Advance">
+                            <IconButton
+                              size="small"
+                              color="warning"
+                              onClick={() => openAdvanceDialog(s.labour._id)}
+                            >
+                              <AdvanceIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
         </TableContainer>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ mt: 1, display: "block", fontStyle: "italic" }}
-        >
-          * P: Present, HD: Half Day, A: Absent. Earnings calculated based on
-          daily wage.
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block", fontStyle: "italic" }}>
+          * P: Present, HD: Half Day, A: Absent. Advances are scoped to this site in the selected month.
         </Typography>
       </Box>
 
       {/* Assign Labour Dialog */}
-      <Dialog
-        open={openAssign}
-        onClose={() => setOpenAssign(false)}
-        fullWidth
-        maxWidth="xs"
-      >
+      <Dialog open={openAssign} onClose={() => setOpenAssign(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 800 }}>Assign Global Labour</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -476,12 +559,78 @@ export default function LabourTab({ siteId }: { siteId: string }) {
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
           <Button onClick={() => setOpenAssign(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleAssign}
-            disabled={!selectedToAssign || submitting}
-          >
+          <Button variant="contained" onClick={handleAssign} disabled={!selectedToAssign || submitting}>
             Assign Now
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Calendar Dialog */}
+      {calendarLabour && (
+        <AttendanceCalendarDialog
+          open={Boolean(calendarLabour)}
+          onClose={() => setCalendarLabour(null)}
+          siteId={siteId}
+          labourId={calendarLabour._id}
+          labourName={calendarLabour.name}
+          wage={calendarLabour.dailyWage}
+        />
+      )}
+
+      {/* Advance Dialog */}
+      <Dialog open={openAdvance} onClose={() => !advanceSaving && setOpenAdvance(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 800 }}>Record Advance</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Amount ₹ *"
+              inputProps={{ inputMode: "decimal" }}
+              value={advanceForm.amount}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              type="date"
+              label="Date"
+              InputLabelProps={{ shrink: true }}
+              value={advanceForm.date}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })}
+            />
+            <FormControl fullWidth size="small">
+              <InputLabel>Mode</InputLabel>
+              <Select
+                label="Mode"
+                value={advanceForm.paymentMode}
+                onChange={(e) =>
+                  setAdvanceForm({ ...advanceForm, paymentMode: e.target.value as typeof advanceForm.paymentMode })
+                }
+              >
+                {["Cash", "UPI", "Bank", "Cheque", "Other"].map((m) => (
+                  <MenuItem key={m} value={m}>
+                    {m}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              size="small"
+              label="Note"
+              value={advanceForm.note}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, note: e.target.value })}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenAdvance(false)} disabled={advanceSaving}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="warning" onClick={saveAdvance} disabled={advanceSaving}>
+            {advanceSaving ? <CircularProgress size={18} color="inherit" /> : "Record"}
           </Button>
         </DialogActions>
       </Dialog>

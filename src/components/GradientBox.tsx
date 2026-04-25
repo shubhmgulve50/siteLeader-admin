@@ -12,7 +12,7 @@ const GradientBox: React.FC<GradientBoxProps> = ({
   sx,
   ...props
 }) => {
-  const gradient = `linear-gradient(${rotation}deg, #1a4b46, #3caea3)`;
+  const gradient = `linear-gradient(${rotation}deg, #FF6B1A, #EF9F27)`;
 
   return (
     <Box

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { toast } from "react-hot-toast";
 import { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
+  Engineering as EngineeringIcon,
   Phone as PhoneIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
@@ -26,13 +27,18 @@ import {
   Select,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import GlassFab from "@/components/common/GlassFab";
 import GenericTable from "@/components/common/GenericTable";
 import PageHeaderWithActions from "@/components/PageHeaderWithActions";
 import apiEndpoints from "@/constants/apiEndpoints";
 import { ROLE } from "@/constants/constants";
 import api from "@/lib/axios";
+import { useT } from "@/i18n/LocaleProvider";
+import { HEADER_BTN_SX } from "@/styles/tokens";
 
 interface Labour {
   _id: string;
@@ -60,7 +66,11 @@ const LABOUR_TYPES = [
 ];
 
 export default function LabourPage() {
+  const t = useT();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [labours, setLabours] = useState<Labour[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +84,7 @@ export default function LabourPage() {
     mobile: "",
     type: "Helper",
     dailyWage: "",
+    kioskPin: "",
   });
 
   const checkUser = async () => {
@@ -115,6 +126,7 @@ export default function LabourPage() {
         mobile: labour.mobile,
         type: labour.type,
         dailyWage: labour.dailyWage.toString(),
+        kioskPin: (labour as Labour & { kioskPin?: string }).kioskPin || "",
       });
     } else {
       setSelectedLabour(null);
@@ -123,6 +135,7 @@ export default function LabourPage() {
         mobile: "",
         type: "Helper",
         dailyWage: "",
+        kioskPin: "",
       });
     }
     setOpenDialog(true);
@@ -173,13 +186,10 @@ export default function LabourPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <PageHeaderWithActions
-        pageTitle="Labour Management"
-        pageIcon={<RefreshIcon />}
+        pageTitle={t("page.labourTitle")}
+        pageIcon={<EngineeringIcon />}
         onRefreshAction={fetchLabours}
-        handleSearch={(v) => {
-          // Implement search if needed, for now just a placeholder
-          console.log("Search:", v);
-        }}
+        handleSearch={(q) => setSearchQuery(q)}
         actions={[
           canManage && (
             <Button
@@ -187,15 +197,9 @@ export default function LabourPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenDialog()}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                bgcolor: "white",
-                color: "primary.main",
-                "&:hover": { bgcolor: alpha("#fff", 0.9) },
-              }}
+              sx={{ ...HEADER_BTN_SX, display: { xs: "none", md: "inline-flex" } }}
             >
-              Add Labour
+              {t("action.addLabour")}
             </Button>
           ),
         ].filter(Boolean)}
@@ -208,11 +212,13 @@ export default function LabourPage() {
       )}
 
       <GenericTable
+        mobileCard
         columns={[
-          { id: "name", label: "Name" },
+          { id: "name", label: "Name", isPrimaryOnMobile: true },
           {
             id: "type",
             label: "Category",
+            mobileLabel: "Type",
             render: (v) => (
               <Chip
                 label={v}
@@ -225,6 +231,7 @@ export default function LabourPage() {
           {
             id: "dailyWage",
             label: "Daily Wage",
+            mobileLabel: "Wage",
             render: (v) => (
               <Typography sx={{ fontWeight: 600, color: "success.main" }}>
                 ₹{v}
@@ -234,6 +241,7 @@ export default function LabourPage() {
           {
             id: "mobile",
             label: "Mobile",
+            mobileLabel: "Phone",
             render: (v) => (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <PhoneIcon fontSize="inherit" color="action" />
@@ -247,6 +255,7 @@ export default function LabourPage() {
                   id: "actions",
                   label: "Actions",
                   align: "right" as const,
+                  isActionColumn: true,
                   render: (_: any, row: Labour) => (
                     <>
                       <IconButton
@@ -267,7 +276,12 @@ export default function LabourPage() {
               ]
             : []),
         ]}
-        data={labours}
+        data={labours.filter((l) =>
+          !searchQuery ||
+          l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          l.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          l.mobile.includes(searchQuery)
+        )}
         loading={loading}
         emptyMessage="No labour records found."
       />
@@ -325,6 +339,17 @@ export default function LabourPage() {
                 setFormData({ ...formData, dailyWage: e.target.value })
               }
             />
+            <TextField
+              label="Kiosk PIN (4 digits, optional)"
+              type="text"
+              fullWidth
+              inputProps={{ inputMode: "numeric", pattern: "[0-9]{4}", maxLength: 4 }}
+              value={formData.kioskPin}
+              onChange={(e) =>
+                setFormData({ ...formData, kioskPin: e.target.value.replace(/\D/g, "").slice(0, 4) })
+              }
+              helperText="Used by worker to self-clock-in at kiosk tablet"
+            />
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3 }}>
@@ -344,6 +369,12 @@ export default function LabourPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {canManage && (
+        <GlassFab color="primary" onClick={() => handleOpenDialog()}>
+          <AddIcon />
+        </GlassFab>
+      )}
     </Box>
   );
 }

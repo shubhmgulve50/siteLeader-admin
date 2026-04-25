@@ -23,6 +23,39 @@ Called from Topbar or sidebar logout button.
 
 ---
 
+### `src/utils/format.ts`
+
+Shared INR currency + Indian-locale date helpers. Use these instead of inline formatters in pages.
+
+#### `formatINR(n?: number | null): string`
+Compact INR formatter. Returns `₹0` for null/undefined. Suffixes: `Cr` (≥1 crore), `L` (≥1 lakh), `K` (≥1k). Below 1k uses `en-IN` locale grouping.
+
+#### `formatINRFull(n?: number | null): string`
+Full-precision INR — no compact suffix, up to 2 decimals, `en-IN` grouping (e.g. `₹1,23,456.75`). Use on invoices, RA bills, PDF exports.
+
+#### `formatDateIN(d?: string | Date | null, opts?: Intl.DateTimeFormatOptions): string`
+`en-IN` locale date formatter. Default opts: `{ day: "2-digit", month: "short", year: "numeric" }` → `21 Apr 2026`.
+
+#### `daysBetween(target: string | Date): number`
+Days from now to `target`. Negative = past.
+
+#### `calcDateProgress(start, end?): number | null`
+Elapsed % between two dates, clamped 0–100. `null` if no end date or end ≤ start.
+
+---
+
+### `src/utils/share.ts`
+
+WhatsApp share helpers. Uses `https://wa.me/` URL scheme — works on mobile + web.
+
+#### `shareOnWhatsApp(text: string, phone?: string): void`
+Opens WhatsApp with pre-filled `text`. If `phone` passed (with or without country code), shares to that contact; else opens contact picker.
+
+#### `buildSiteSummary(site, stats?): string`
+Builds formatted summary text (name, status, client, contact, address, financials) suitable for WhatsApp. Used by Site Detail header share button.
+
+---
+
 ## Custom hooks
 
 ### `useLoader` (in `src/components/Loader.tsx`)
@@ -69,6 +102,65 @@ API.ADMIN.STATS       // '/api/admin/dashboard-stats'
 
 ---
 
+## Design tokens (`src/styles/tokens.ts`)
+
+Single source of truth for radius / spacing / status-colour mapping. Use everywhere for visual consistency.
+
+```typescript
+import { RADIUS, SPACING, COLORS, ACCENT } from "@/styles/tokens";
+
+// Paper radius — always RADIUS.md (3)
+sx={{ borderRadius: RADIUS.md }}
+
+// Status chip colours (by domain)
+COLORS.site["Ongoing"]          // "warning"
+COLORS.payment["OVERDUE"]       // "error"
+COLORS.milestone["IN_PROGRESS"] // "warning"
+
+// Accent palette for KPI cards
+ACCENT.success  // #16a34a
+ACCENT.primary  // #2563eb
+ACCENT.amber    // #b45309
+```
+
+---
+
+## Shared common components
+
+### `KpiCard` (`src/components/common/KpiCard.tsx`)
+Unified statistic card — replaces ad-hoc `<Paper>` with inline alpha-tinted backgrounds. Three variants:
+
+```tsx
+import KpiCard from "@/components/common/KpiCard";
+import { ACCENT } from "@/styles/tokens";
+
+<KpiCard label="Total Sites" value={12} icon={<SiteIcon />} color={ACCENT.primary} variant="default" />
+<KpiCard label="Revenue" value="₹1,24,500" color={ACCENT.success} variant="soft" />
+<KpiCard label="Overdue" value="3" color={ACCENT.error} variant="filled" />
+```
+
+- **default** — neutral paper with coloured icon bubble, hover lift
+- **soft** — tinted bg with coloured border, uppercase coloured label
+- **filled** — full accent bg with white text (use sparingly for emphasis)
+
+### `StatusChip` (`src/components/common/StatusChip.tsx`)
+Domain-driven status chip that picks colour from `COLORS` map and translates label through `status.*` i18n keys.
+
+```tsx
+import StatusChip from "@/components/common/StatusChip";
+
+<StatusChip status="Ongoing" domain="site" />
+<StatusChip status="OVERDUE" domain="payment" />
+<StatusChip status="IN_PROGRESS" domain="milestone" />
+```
+
+Skip `domain` prop to default to `"site"`. Pass `raw` to bypass i18n translation (rare).
+
+### `GenericTable` (`src/components/common/GenericTable.tsx`)
+Canonical list-page table. Always use this over native `<Table>` for consistency — built-in skeleton loading, empty-state, hover rows, uniform `grey.50` header bg.
+
+---
+
 ## App constants (`src/constants/constants.ts`)
 
 ### `ROLE`
@@ -103,4 +195,46 @@ Do not add business logic here.
 
 ---
 
-*Last updated: 2026-04-17*
+---
+
+## i18n (en / hi / mr)
+
+Lightweight context-based translation — no next-intl, no route restructure.
+
+### Files
+- `src/i18n/locales/{en,hi,mr}.json` — flat JSON dictionaries, nested by namespace (menu, common, status, attendance, toast).
+- `src/i18n/LocaleProvider.tsx` — React Context. Reads `localStorage.siteLeader.locale`. Fallback resolution: active → en → raw key.
+- `src/components/LanguageSwitcher.tsx` — MUI IconButton + Menu dropdown in Topbar.
+
+### Wiring
+1. `app/layout.tsx` wraps children in `<LocaleProvider>`.
+2. `components/Topbar.tsx` renders `<LanguageSwitcher />`.
+3. User choice persists in `localStorage` and updates `<html lang>` attr.
+
+### Usage
+```tsx
+import { useT } from "@/i18n/LocaleProvider";
+
+export default function MyComponent() {
+  const t = useT();
+  return <Button>{t("common.save")}</Button>;
+}
+```
+
+With interpolation: `t("greeting", { name: "Raj" })` → template `"Hello {{name}}"`.
+
+### Retrofit strategy
+- **Done**: sidebar menu labels (via `labelKey` in `MAIN_MENU_ITEMS` + `BOTTOM_MENU_ITEMS`).
+- **Progressive migration**: when editing any page, replace hardcoded user-facing strings with `t("namespace.key")`. Add missing keys to all three JSON files together. Never let one language fall behind — `LocaleProvider` falls back to `en` for missing keys so nothing breaks but UX degrades.
+- **Print pages**: intentionally left in English (invoices, RA bills, registers) for universal recipient readability. Switch via locale only if client explicitly requests.
+- **User data**: never auto-translate user-entered content (site names, labour names, notes). Only static UI chrome.
+
+### Font support
+Hindi + Marathi share Devanagari script. System fonts handle it; add Noto Sans Devanagari via `next/font` if visual polish is needed.
+
+### Number / date locale
+Already `en-IN` throughout via `formatINRFull` + `formatDateIN`. Works correctly for hi/mr users too — Indian grouping (1,00,000) is locale-appropriate.
+
+---
+
+*Last updated: 2026-04-22*

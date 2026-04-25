@@ -1,22 +1,16 @@
 "use client";
 
-import moment from "moment";
 import toast from "react-hot-toast";
-import React, { useEffect, useState } from "react";
 import {
-  CalendarMonth as CalendarIcon,
   Fullscreen as FullscreenIcon,
   Menu as MenuIcon,
 } from "@mui/icons-material";
-import {
-  Box,
-  Divider,
-  IconButton,
-  Stack,
-  Typography,
-  useTheme,
-} from "@mui/material";
+import { Box, IconButton, Stack, useTheme } from "@mui/material";
+import { usePathname } from "next/navigation";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import NotificationsBell from "@/components/NotificationsBell";
 import { ThemeToggleButton } from "@/components/ThemeToggleButton";
+import LogoView from "@/components/LogoView";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -25,12 +19,8 @@ interface TopbarProps {
 
 const Topbar = ({ onMenuClick, isSidebarOpen }: TopbarProps) => {
   const theme = useTheme();
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const interval = setInterval(() => setCurrentTime(new Date()), 60_000);
-    return () => clearInterval(interval);
-  }, []);
+  const pathname = usePathname();
+  const isDashboard = pathname === "/admin/dashboard";
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -48,29 +38,61 @@ const Topbar = ({ onMenuClick, isSidebarOpen }: TopbarProps) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: 2,
-        p: 2,
+        gap: 1,
+        px: { xs: 1.5, sm: 2 },
+        py: { xs: 0.75, sm: 1.5 },
         borderBottom: `1px solid ${theme.palette.divider}`,
         width: "100%",
         boxSizing: "border-box",
+        minHeight: { xs: 56, sm: 64 },
+        position: { xs: "sticky", md: "relative" },
+        top: { xs: 0, md: "auto" },
+        zIndex: { xs: 1100, md: "auto" },
+        bgcolor: "background.paper",
       }}
     >
-      {/* Left Section: Show Menu Icon ONLY if sidebar is closed */}
-      <Box sx={{ minWidth: 40 }}>
-        {!isSidebarOpen && (
-          <IconButton onClick={onMenuClick}>
-            <MenuIcon />
-          </IconButton>
-        )}
+      {/* Left: hamburger + logo */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        {/* Mobile hamburger — always visible to open drawer */}
+        <IconButton
+          onClick={onMenuClick}
+          size="small"
+          sx={{ display: { xs: "flex", md: "none" } }}
+        >
+          <MenuIcon />
+        </IconButton>
+
+        {/* Mobile logo */}
+        <Box sx={{ display: { xs: "flex", md: "none" }, ml: 0.5, maxWidth: { xs: 120, sm: 160 }, overflow: "hidden" }}>
+          <LogoView clickable={false} />
+        </Box>
+
+        {/* Desktop hamburger — only when sidebar closed */}
+        <Box sx={{ display: { xs: "none", md: "flex" }, minWidth: 40 }}>
+          {!isSidebarOpen && (
+            <IconButton onClick={onMenuClick} size="small">
+              <MenuIcon />
+            </IconButton>
+          )}
+        </Box>
       </Box>
 
-      {/* Right Section: Utilities */}
-      <Stack direction="row" spacing={1.5} alignItems="center">
+      {/* Right: action icons */}
+      <Stack direction="row" spacing={{ xs: 0.25, sm: 1.5 }} alignItems="center">
+        <NotificationsBell />
+
+        {isDashboard && (
+          <Box sx={{ display: { xs: "none", sm: "flex" } }}>
+            <LanguageSwitcher />
+          </Box>
+        )}
+
         <ThemeToggleButton />
 
         <IconButton
-          onClick={() => toggleFullscreen()}
+          onClick={toggleFullscreen}
           sx={{
+            display: { xs: "none", sm: "flex" },
             bgcolor: "primary.main",
             color: "white",
             "&:hover": { bgcolor: "primary.dark" },
@@ -80,38 +102,6 @@ const Topbar = ({ onMenuClick, isSidebarOpen }: TopbarProps) => {
         >
           <FullscreenIcon />
         </IconButton>
-
-        <Divider
-          orientation="vertical"
-          flexItem
-          sx={{ mx: 1, borderColor: "divider", borderWidth: 1 }}
-        />
-
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1.5,
-            bgcolor: "primary.main",
-            color: "white",
-            px: 3,
-            py: 1.2,
-            borderRadius: 10,
-            boxShadow: "0 2px 8px rgba(10, 163, 141, 0.2)",
-          }}
-        >
-          <Typography
-            noWrap
-            sx={{
-              fontWeight: 600,
-              fontSize: "0.95rem",
-              letterSpacing: 0.2,
-            }}
-          >
-            {moment(currentTime).format("ddd, DD MMM YYYY | HH:mm")}
-          </Typography>
-          <CalendarIcon sx={{ fontSize: 20, opacity: 0.9 }} />
-        </Box>
       </Stack>
     </Box>
   );

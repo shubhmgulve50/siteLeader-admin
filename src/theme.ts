@@ -9,7 +9,7 @@ const poppins = Poppins({
   display: "swap",
 });
 
-const primaryMain = "#0AA38D";
+const primaryMain = "#FF6B1A";
 
 const theme = createTheme({
   colorSchemes: {

@@ -43,6 +43,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 const LoginForm = () => {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
 
   const {
     register,
@@ -60,12 +61,13 @@ const LoginForm = () => {
   const theme = useTheme();
 
   const onSubmit = async (data: LoginFormData) => {
+    setErrorCode(null);
     try {
       const response = await api.post(apiEndpoints.login, data);
       if (response.status === 200) {
         // Successful login - backend sets HttpOnly cookie for middleware
         // Router push to admin area
-        router.push("/admin/settings");
+        router.push("/admin/dashboard");
       } else {
         setError("root", {
           type: "manual",
@@ -73,6 +75,8 @@ const LoginForm = () => {
         });
       }
     } catch (err: any) {
+      const code = err.response?.data?.code ?? null;
+      setErrorCode(code);
       setError("root", {
         type: "manual",
         message: err.response?.data?.message || "Login failed",
@@ -186,8 +190,66 @@ const LoginForm = () => {
                 }}
               />
 
-              {errors.root && (
-                <Alert severity="error" sx={{ mt: 2 }}>
+              {errors.root && errorCode === "PENDING_APPROVAL" && (
+                <Alert
+                  severity="warning"
+                  sx={{ mt: 2, borderRadius: 2 }}
+                  action={
+                    <Button
+                      color="warning"
+                      size="small"
+                      variant="outlined"
+                      href="/admin/super-admin"
+                      sx={{ fontWeight: 700, whiteSpace: "nowrap", fontSize: "0.7rem" }}
+                    >
+                      Approve Now
+                    </Button>
+                  }
+                >
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Account pending approval
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+                    Log in as Super Admin → approve this builder.
+                  </Typography>
+                </Alert>
+              )}
+
+              {errors.root && errorCode === "EMAIL_NOT_VERIFIED" && (
+                <Alert severity="info" sx={{ mt: 2, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Email not verified
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+                    Check inbox for verification link. Or ask Super Admin to verify manually.
+                  </Typography>
+                </Alert>
+              )}
+
+              {errors.root && errorCode === "ACCOUNT_DENIED" && (
+                <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Account denied
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+                    Contact support or ask Super Admin to reinstate your account.
+                  </Typography>
+                </Alert>
+              )}
+
+              {errors.root && errorCode === "ACCOUNT_SUSPENDED" && (
+                <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    Account suspended
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", mt: 0.25 }}>
+                    Contact support or ask Super Admin to reinstate your account.
+                  </Typography>
+                </Alert>
+              )}
+
+              {errors.root && !errorCode && (
+                <Alert severity="error" sx={{ mt: 2, borderRadius: 2 }}>
                   {errors.root.message}
                 </Alert>
               )}

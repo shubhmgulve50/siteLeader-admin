@@ -25,7 +25,11 @@ const publicRoutes = [
 ];
 
 function isPublicRoute(path: string) {
-  return publicRoutes.includes(path) || path.startsWith("/pages/");
+  return (
+    publicRoutes.includes(path) ||
+    path.startsWith("/pages/") ||
+    path.startsWith("/portal/")
+  );
 }
 
 async function verifyToken(token: string) {

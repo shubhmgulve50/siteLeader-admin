@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { toast } from "react-hot-toast";
 import { useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import {
   Delete as DeleteIcon,
   Edit as EditIcon,
   SwapHoriz as LogIcon,
+  CompareArrows as TransferIcon,
   Warning as WarningIcon,
 } from "@mui/icons-material";
 import {
@@ -39,13 +40,19 @@ import {
   TableRow,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import GlassFab from "@/components/common/GlassFab";
 import GenericTable from "@/components/common/GenericTable";
 import PageHeaderWithActions from "@/components/PageHeaderWithActions";
 import apiEndpoints from "@/constants/apiEndpoints";
 import api from "@/lib/axios";
+import { useT } from "@/i18n/LocaleProvider";
+import { HEADER_BTN_SX, HEADER_ICON_BTN_SX, TABLE_HEAD_SX } from "@/styles/tokens";
 
 interface Material {
   _id: string;
@@ -82,19 +89,63 @@ const UNITS = [
 ];
 
 export default function MaterialsPage() {
+  const t = useT();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [tab, setTab] = useState(0);
   const [materials, setMaterials] = useState<Material[]>([]);
   const [logs, setLogs] = useState<MaterialLog[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
   // Dialogs
   const [openMaterialDialog, setOpenMaterialDialog] = useState(false);
   const [openLogDialog, setOpenLogDialog] = useState(false);
+  const [openTransferDialog, setOpenTransferDialog] = useState(false);
   const [dialogLoading, setDialogLoading] = useState(false);
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(
     null
   );
+
+  const [transferForm, setTransferForm] = useState({
+    materialId: "",
+    fromSiteId: "",
+    toSiteId: "",
+    quantity: "",
+    description: "",
+  });
+  const [transferBusy, setTransferBusy] = useState(false);
+
+  const handleTransfer = async () => {
+    const { materialId, fromSiteId, toSiteId, quantity } = transferForm;
+    if (!materialId || !fromSiteId || !toSiteId || !quantity) {
+      return toast.error("Fill material, both sites and quantity");
+    }
+    if (fromSiteId === toSiteId) return toast.error("Sites must differ");
+    setTransferBusy(true);
+    try {
+      await api.post(apiEndpoints.materials.transfer, {
+        ...transferForm,
+        quantity: Number(quantity),
+      });
+      toast.success("Transfer recorded");
+      setOpenTransferDialog(false);
+      setTransferForm({
+        materialId: "",
+        fromSiteId: "",
+        toSiteId: "",
+        quantity: "",
+        description: "",
+      });
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || "Transfer failed");
+    } finally {
+      setTransferBusy(false);
+    }
+  };
 
   // Forms
   const [mForm, setMForm] = useState({
@@ -220,48 +271,52 @@ export default function MaterialsPage() {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 } }}>
+    <Box sx={{ p: { xs: 2, sm: 2 } }}>
       <PageHeaderWithActions
-        pageTitle="Inventory Hub"
+        pageTitle={t("page.materialsTitle")}
         pageIcon={<BoxIcon />}
         onRefreshAction={fetchData}
-        handleSearch={(v) => {
-          console.log("Search:", v);
-        }}
+        handleSearch={(q) => setSearchQuery(q)}
         actions={[
-          <Button
-            key="update-stock"
-            variant="outlined"
-            size="small"
-            startIcon={<LogIcon />}
-            disabled={materials.length === 0}
-            onClick={() => setOpenLogDialog(true)}
-            sx={{
-              borderRadius: 2,
-              px: 2,
-              color: "white",
-              borderColor: alpha("#fff", 0.5),
-              "&:hover": { borderColor: "white", bgcolor: alpha("#fff", 0.1) },
-            }}
-          >
-            Update Stock
-          </Button>,
-          <Button
-            key="new-material"
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => handleOpenMaterialDialog()}
-            sx={{
-              borderRadius: 2,
-              px: 2,
-              bgcolor: "white",
-              color: "primary.main",
-              "&:hover": { bgcolor: alpha("#fff", 0.9) },
-            }}
-          >
-            New Material
-          </Button>,
+          <Box key="update-stock" sx={{ display: { xs: "none", md: "flex" } }}>
+            <Tooltip title="Update Stock">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={materials.length === 0}
+                  onClick={() => setOpenLogDialog(true)}
+                  sx={HEADER_ICON_BTN_SX}
+                >
+                  <LogIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>,
+          <Box key="transfer" sx={{ display: { xs: "none", md: "flex" } }}>
+            <Tooltip title="Transfer between sites">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={materials.length === 0 || sites.length < 2}
+                  onClick={() => setOpenTransferDialog(true)}
+                  sx={HEADER_ICON_BTN_SX}
+                >
+                  <TransferIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Box>,
+          <Box key="new-material" sx={{ display: { xs: "none", md: "flex" } }}>
+            <Tooltip title="Add Material">
+              <IconButton
+                size="small"
+                onClick={() => handleOpenMaterialDialog()}
+                sx={{ ...HEADER_ICON_BTN_SX, bgcolor: "rgba(255,255,255,0.15)" }}
+              >
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Box>,
         ]}
       />
 
@@ -290,15 +345,15 @@ export default function MaterialsPage() {
                 />
               </Grid>
             ))
-          ) : materials.length === 0 ? (
+          ) : materials.filter((m) => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 ? (
             <Box sx={{ p: 10, textAlign: "center", width: "100%" }}>
               <BoxIcon sx={{ fontSize: 60, color: "grey.300", mb: 2 }} />
               <Typography color="text.secondary">
-                Inventory is empty.
+                {searchQuery ? "No materials match your search." : "Inventory is empty."}
               </Typography>
             </Box>
           ) : (
-            materials.map((m) => (
+            materials.filter((m) => !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase())).map((m) => (
               <Grid size={{ xs: 12, sm: 6, md: 4 }} key={m._id}>
                 <Card
                   sx={{
@@ -365,16 +420,19 @@ export default function MaterialsPage() {
 
       {tab === 1 && (
         <GenericTable
+          mobileCard
           columns={[
-            { id: "name", label: "Material Name" },
+            { id: "name", label: "Material Name", isPrimaryOnMobile: true },
             {
               id: "currentStock",
               label: "Stock",
+              mobileLabel: "Stock",
               render: (v, row) => `${v} ${row.unit}`,
             },
             {
               id: "minStock",
               label: "Min Threshold",
+              mobileLabel: "Min",
               render: (v, row) => (
                 <Chip
                   label={`${v} ${row.unit}`}
@@ -388,6 +446,7 @@ export default function MaterialsPage() {
               id: "actions",
               label: "Actions",
               align: "right",
+              isActionColumn: true,
               render: (_: any, row: Material) => (
                 <Box>
                   <IconButton
@@ -406,74 +465,133 @@ export default function MaterialsPage() {
               ),
             },
           ]}
-          data={materials}
+          data={materials.filter((m) =>
+            !searchQuery || m.name.toLowerCase().includes(searchQuery.toLowerCase())
+          )}
           loading={loading}
         />
       )}
 
       {tab === 2 && (
-        <TableContainer
-          component={Paper}
-          elevation={0}
-          sx={{
-            borderRadius: 3,
-            border: "1px solid",
-            borderColor: "grey.200",
-            overflowX: "auto",
-          }}
-        >
-          <Table>
-            <TableHead sx={{ bgcolor: "grey.50" }}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Material</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Movement</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Quantity</TableCell>
-                <TableCell sx={{ fontWeight: 700 }}>Site / Note</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {logs.length === 0 ? (
+        isMobile ? (
+          <Stack spacing={1.5}>
+            {logs.length === 0 ? (
+              <Paper elevation={0} sx={{ p: 4, textAlign: "center", borderRadius: 3, border: "1px solid", borderColor: "divider" }}>
+                <Typography color="text.secondary" variant="body2">No history records.</Typography>
+              </Paper>
+            ) : logs.map((log) => (
+              <Paper
+                key={log._id}
+                elevation={0}
+                sx={{
+                  borderRadius: 3,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  overflow: "hidden",
+                  bgcolor: "background.paper",
+                }}
+              >
+                {/* Header row: material name + chip */}
+                <Box sx={{ px: 2, pt: 1.5, pb: 1, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    {log.materialId?.name}
+                  </Typography>
+                  <Chip
+                    label={log.type === "In" ? "Stock In" : "Stock Out"}
+                    color={log.type === "In" ? "success" : "warning"}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontWeight: 700, flexShrink: 0 }}
+                  />
+                </Box>
+                {/* Body: 2-col grid */}
+                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", px: 2, pb: 0.5, gap: 0 }}>
+                  {[
+                    {
+                      label: "Quantity",
+                      value: (
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: log.type === "In" ? "success.main" : "warning.main" }}>
+                          {log.type === "In" ? "+" : "−"}{log.quantity} {log.materialId?.unit}
+                        </Typography>
+                      ),
+                    },
+                    {
+                      label: "Site",
+                      value: <Typography variant="body2" sx={{ fontWeight: 500 }}>{log.siteId?.name || "Warehouse"}</Typography>,
+                    },
+                  ].map((item, i) => (
+                    <Box key={item.label} sx={{ py: 0.75, pr: i % 2 === 0 ? 1.5 : 0, pl: i % 2 === 1 ? 1.5 : 0, borderRight: i % 2 === 0 ? "1px solid" : "none", borderColor: "divider" }}>
+                      <Typography variant="caption" sx={{ color: "text.disabled", display: "block", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600, mb: 0.2 }}>
+                        {item.label}
+                      </Typography>
+                      {item.value}
+                    </Box>
+                  ))}
+                </Box>
+                {/* Footer: date + note */}
+                <Box sx={{ px: 2, py: 0.75, bgcolor: (t) => alpha(t.palette.action.hover, 0.3), borderTop: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+                  <Typography variant="caption" color="text.disabled" sx={{ fontSize: "0.7rem" }}>
+                    {new Date(log.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </Typography>
+                  {log.description && (
+                    <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic", textAlign: "right", maxWidth: "55%" }} noWrap>
+                      {log.description}
+                    </Typography>
+                  )}
+                </Box>
+              </Paper>
+            ))}
+          </Stack>
+        ) : (
+          <TableContainer
+            component={Paper}
+            elevation={0}
+            sx={{ borderRadius: 3, border: "1px solid", borderColor: "grey.200", overflowX: "auto" }}
+          >
+            <Table>
+              <TableHead sx={TABLE_HEAD_SX}>
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
-                    No history records.
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Material</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Movement</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Quantity</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Site / Note</TableCell>
                 </TableRow>
-              ) : (
-                logs.map((log) => (
-                  <TableRow key={log._id} hover>
-                    <TableCell>
-                      {new Date(log.createdAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>
-                      {log.materialId?.name}
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={log.type === "In" ? "Stock In" : "Stock Out"}
-                        color={log.type === "In" ? "success" : "warning"}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 700 }}>
-                      {log.type === "In" ? "+" : "-"}
-                      {log.quantity} {log.materialId?.unit}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {log.siteId?.name || "Warehouse Warehouse"}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {log.description}
-                      </Typography>
+              </TableHead>
+              <TableBody>
+                {logs.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                      No history records.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                ) : (
+                  logs.map((log) => (
+                    <TableRow key={log._id} hover>
+                      <TableCell>{new Date(log.createdAt).toLocaleString()}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{log.materialId?.name}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={log.type === "In" ? "Stock In" : "Stock Out"}
+                          color={log.type === "In" ? "success" : "warning"}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>
+                        {log.type === "In" ? "+" : "-"}{log.quantity} {log.materialId?.unit}
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2">{log.siteId?.name || "Warehouse"}</Typography>
+                        <Typography variant="caption" color="text.secondary">{log.description}</Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )
       )}
 
       <Dialog
@@ -632,6 +750,101 @@ export default function MaterialsPage() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Inter-site transfer dialog */}
+      <Dialog
+        open={openTransferDialog}
+        onClose={() => !transferBusy && setOpenTransferDialog(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle sx={{ fontWeight: 800 }}>Transfer Material Between Sites</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Create linked Out + In log pair. Global stock unchanged.
+          </Typography>
+          <Stack spacing={2}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Material *</InputLabel>
+              <Select
+                label="Material *"
+                value={transferForm.materialId}
+                onChange={(e) => setTransferForm({ ...transferForm, materialId: e.target.value })}
+              >
+                {materials.map((m) => (
+                  <MenuItem key={m._id} value={m._id}>
+                    {m.name} ({m.unit}) — Stock: {m.currentStock}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>From Site *</InputLabel>
+              <Select
+                label="From Site *"
+                value={transferForm.fromSiteId}
+                onChange={(e) => setTransferForm({ ...transferForm, fromSiteId: e.target.value })}
+              >
+                {sites.map((s) => (
+                  <MenuItem key={s._id} value={s._id}>
+                    {s.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth size="small">
+              <InputLabel>To Site *</InputLabel>
+              <Select
+                label="To Site *"
+                value={transferForm.toSiteId}
+                onChange={(e) => setTransferForm({ ...transferForm, toSiteId: e.target.value })}
+              >
+                {sites
+                  .filter((s) => s._id !== transferForm.fromSiteId)
+                  .map((s) => (
+                    <MenuItem key={s._id} value={s._id}>
+                      {s.name}
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Quantity *"
+              inputProps={{ inputMode: "decimal" }}
+              value={transferForm.quantity}
+              onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Note"
+              value={transferForm.description}
+              onChange={(e) => setTransferForm({ ...transferForm, description: e.target.value })}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenTransferDialog(false)} disabled={transferBusy}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={handleTransfer} disabled={transferBusy}>
+            {transferBusy ? <CircularProgress size={18} color="inherit" /> : "Transfer"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <GlassFab
+        color="primary"
+        onClick={() => {
+          if (tab === 0 || tab === 1) setOpenMaterialDialog(true);
+          else setOpenLogDialog(true);
+        }}
+      >
+        <AddIcon />
+      </GlassFab>
     </Box>
   );
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { toast } from "react-hot-toast";
 import { useEffect, useState } from "react";
@@ -9,10 +9,16 @@ import {
   Delete as DeleteIcon,
   Description as DocIcon,
   Edit as EditIcon,
+  ExpandMore as ExpandMoreIcon,
+  Print as PrintIcon,
   Send as SendIcon,
   Visibility as ViewIcon,
+  WhatsApp as WhatsAppIcon,
 } from "@mui/icons-material";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Chip,
@@ -32,21 +38,38 @@ import {
   Stack,
   TextField,
   Tooltip,
+  useMediaQuery,
+  useTheme,
   Typography,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import GlassFab from "@/components/common/GlassFab";
 import GenericTable from "@/components/common/GenericTable";
 import PageHeaderWithActions from "@/components/PageHeaderWithActions";
 import apiEndpoints from "@/constants/apiEndpoints";
 import { ROLE } from "@/constants/constants";
 import api from "@/lib/axios";
+import { useT } from "@/i18n/LocaleProvider";
+import { formatINRFull } from "@/utils/format";
+import { shareOnWhatsApp } from "@/utils/share";
+import { HEADER_BTN_SX, WA_GREEN } from "@/styles/tokens";
+
+type GstType = "NONE" | "CGST_SGST" | "IGST";
 
 interface QuotationItem {
+  sectionTitle?: string;
+  itemNumber?: string;
   description: string;
   quantity: number | string;
   unit: string;
+  materialRate?: number | string;
+  labourRate?: number | string;
+  equipmentRate?: number | string;
+  otherRate?: number | string;
   rate: number | string;
   amount: number;
+  hsnCode?: string;
+  notes?: string;
 }
 
 interface Quotation {
@@ -60,8 +83,19 @@ interface Quotation {
   status: string;
   createdAt: string;
   items: QuotationItem[];
-  taxPercentage: number;
   subTotal: number;
+  discountAmount?: number;
+  gstType?: GstType;
+  cgstPercentage?: number;
+  sgstPercentage?: number;
+  igstPercentage?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  taxPercentage: number;
+  taxAmount?: number;
+  validUntil?: string;
+  revisionNumber?: number;
 }
 
 interface Site {
@@ -70,8 +104,12 @@ interface Site {
 }
 
 export default function QuotationsPage() {
+  const t = useT();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
 
@@ -81,16 +119,38 @@ export default function QuotationsPage() {
   const [selectedQuote, setSelectedQuote] = useState<Quotation | null>(null);
   const [dialogLoading, setDialogLoading] = useState(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
+  const emptyItem = (): QuotationItem => ({
+    sectionTitle: "",
+    itemNumber: "",
+    description: "",
+    quantity: 1,
+    unit: "Sq.Ft",
+    materialRate: 0,
+    labourRate: 0,
+    equipmentRate: 0,
+    otherRate: 0,
+    rate: 0,
+    amount: 0,
+    hsnCode: "",
+    notes: "",
+  });
+
+  const defaultForm = () => ({
     clientName: "",
     clientAddress: "",
     siteId: "",
+    gstType: "NONE" as GstType,
+    cgstPercentage: 9,
+    sgstPercentage: 9,
+    igstPercentage: 18,
     taxPercentage: 0,
-    items: [
-      { description: "", quantity: 1, unit: "Sq.Ft", rate: 0, amount: 0 },
-    ],
+    discountAmount: 0,
+    validUntil: "",
+    items: [emptyItem()],
   });
+
+  const [formData, setFormData] = useState(defaultForm());
+  const [expandedAnalysis, setExpandedAnalysis] = useState<number | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -118,13 +178,7 @@ export default function QuotationsPage() {
 
   // Form Logic
   const handleAddItem = () => {
-    setFormData({
-      ...formData,
-      items: [
-        ...formData.items,
-        { description: "", quantity: 1, unit: "Sq.Ft", rate: 0, amount: 0 },
-      ],
-    });
+    setFormData({ ...formData, items: [...formData.items, emptyItem()] });
   };
 
   const handleRemoveItem = (index: number) => {
@@ -133,23 +187,45 @@ export default function QuotationsPage() {
     setFormData({ ...formData, items: newItems });
   };
 
-  const handleItemChange = (index: number, field: string, value: any) => {
-    const newItems = [...formData.items];
-    (newItems[index] as any)[field] = value;
+  const recomputeItem = (it: QuotationItem): QuotationItem => {
+    const m = Number(it.materialRate) || 0;
+    const l = Number(it.labourRate) || 0;
+    const e = Number(it.equipmentRate) || 0;
+    const o = Number(it.otherRate) || 0;
+    const breakdown = m + l + e + o;
+    const rate = breakdown > 0 ? breakdown : Number(it.rate) || 0;
+    const qty = Number(it.quantity) || 0;
+    return { ...it, rate, amount: qty * rate };
+  };
 
-    if (field === "quantity" || field === "rate") {
-      newItems[index].amount =
-        Number(newItems[index].quantity) * Number(newItems[index].rate);
-    }
+  const handleItemChange = (index: number, field: keyof QuotationItem, value: unknown) => {
+    const newItems = [...formData.items];
+    (newItems[index] as unknown as Record<string, unknown>)[field as string] = value;
+    newItems[index] = recomputeItem(newItems[index]);
     setFormData({ ...formData, items: newItems });
   };
 
-  const calculateSubtotal = () => {
-    return formData.items.reduce(
-      (acc, item) => acc + Number(item.quantity) * Number(item.rate),
-      0
-    );
-  };
+  const calculateSubtotal = () =>
+    formData.items.reduce((acc, item) => {
+      const recomputed = recomputeItem(item);
+      return acc + recomputed.amount;
+    }, 0);
+
+  const taxableAmount = Math.max(0, calculateSubtotal() - Number(formData.discountAmount || 0));
+  const taxBreakup = (() => {
+    if (formData.gstType === "CGST_SGST") {
+      const cgst = (taxableAmount * Number(formData.cgstPercentage || 0)) / 100;
+      const sgst = (taxableAmount * Number(formData.sgstPercentage || 0)) / 100;
+      return { label: "GST", amount: cgst + sgst, cgst, sgst, igst: 0 };
+    }
+    if (formData.gstType === "IGST") {
+      const igst = (taxableAmount * Number(formData.igstPercentage || 0)) / 100;
+      return { label: "IGST", amount: igst, cgst: 0, sgst: 0, igst };
+    }
+    const simple = (taxableAmount * Number(formData.taxPercentage || 0)) / 100;
+    return { label: "Tax", amount: simple, cgst: 0, sgst: 0, igst: 0 };
+  })();
+  const grandTotal = taxableAmount + taxBreakup.amount;
 
   const handleEdit = (q: Quotation) => {
     setSelectedQuote(q);
@@ -157,13 +233,27 @@ export default function QuotationsPage() {
       clientName: q.clientName,
       clientAddress: q.clientAddress || "",
       siteId: q.siteId?._id || "",
+      gstType: q.gstType || "NONE",
+      cgstPercentage: q.cgstPercentage ?? 9,
+      sgstPercentage: q.sgstPercentage ?? 9,
+      igstPercentage: q.igstPercentage ?? 18,
       taxPercentage: q.taxPercentage || 0,
+      discountAmount: q.discountAmount || 0,
+      validUntil: q.validUntil ? q.validUntil.substring(0, 10) : "",
       items: q.items.map((item) => ({
+        sectionTitle: item.sectionTitle || "",
+        itemNumber: item.itemNumber || "",
         description: item.description,
         quantity: Number(item.quantity) || 0,
         unit: item.unit,
+        materialRate: Number(item.materialRate) || 0,
+        labourRate: Number(item.labourRate) || 0,
+        equipmentRate: Number(item.equipmentRate) || 0,
+        otherRate: Number(item.otherRate) || 0,
         rate: Number(item.rate) || 0,
         amount: item.amount,
+        hsnCode: item.hsnCode || "",
+        notes: item.notes || "",
       })),
     });
     setOpenForm(true);
@@ -218,9 +308,10 @@ export default function QuotationsPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <PageHeaderWithActions
-        pageTitle="Quotations Hub"
+        pageTitle={t("page.quotationsTitle")}
         pageIcon={<DocIcon />}
         onRefreshAction={fetchData}
+        handleSearch={(q) => setSearchQuery(q)}
         actions={[
           isBuilder && (
             <Button
@@ -229,42 +320,24 @@ export default function QuotationsPage() {
               startIcon={<AddIcon />}
               onClick={() => {
                 setSelectedQuote(null);
-                setFormData({
-                  clientName: "",
-                  clientAddress: "",
-                  siteId: "",
-                  taxPercentage: 0,
-                  items: [
-                    {
-                      description: "",
-                      quantity: 1,
-                      unit: "Sq.Ft",
-                      rate: 0,
-                      amount: 0,
-                    },
-                  ],
-                });
+                setFormData(defaultForm());
                 setOpenForm(true);
               }}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                bgcolor: "white",
-                color: "primary.main",
-                "&:hover": { bgcolor: alpha("#fff", 0.9) },
-              }}
+              sx={{ ...HEADER_BTN_SX, display: { xs: "none", md: "inline-flex" } }}
             >
-              New Quotation
+              {t("action.newQuotation")}
             </Button>
           ),
         ].filter(Boolean)}
       />
 
       <GenericTable
+        mobileCard
         columns={[
           {
             id: "quotationNumber",
             label: "Quote #",
+            mobileLabel: "Quote #",
             render: (v) => (
               <Typography sx={{ fontWeight: 700, color: "primary.main" }}>
                 {v}
@@ -274,14 +347,16 @@ export default function QuotationsPage() {
           {
             id: "clientName",
             label: "Client",
+            isPrimaryOnMobile: true,
             render: (v) => (
               <Typography sx={{ fontWeight: 500 }}>{v}</Typography>
             ),
           },
-          { id: "siteId", label: "Site", render: (v) => v?.name || "N/A" },
+          { id: "siteId", label: "Site", mobileLabel: "Site", render: (v) => v?.name || "N/A" },
           {
             id: "totalAmount",
             label: "Grand Total",
+            mobileLabel: "Total",
             render: (v) => (
               <Typography sx={{ fontWeight: 800 }}>
                 ₹{v.toLocaleString()}
@@ -291,6 +366,7 @@ export default function QuotationsPage() {
           {
             id: "status",
             label: "Status",
+            isSecondaryBadge: true,
             render: (v) => (
               <Chip
                 label={v}
@@ -318,18 +394,43 @@ export default function QuotationsPage() {
             id: "actions",
             label: "Actions",
             align: "right",
+            isActionColumn: true,
             render: (_: any, row: Quotation) => (
               <Stack direction="row" spacing={1} justifyContent="flex-end">
                 <Tooltip title="View Details">
                   <IconButton
                     size="small"
-                    sx={{ bgcolor: "grey.100" }}
+                    sx={{ color: "info.main", bgcolor: (t) => alpha(t.palette.info.main, 0.1), borderRadius: 2 }}
                     onClick={() => {
                       setSelectedQuote(row);
                       setOpenView(true);
                     }}
                   >
-                    <ViewIcon fontSize="small" color="action" />
+                    <ViewIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Print / PDF">
+                  <IconButton
+                    size="small"
+                    sx={{ color: "text.secondary", bgcolor: (t) => alpha(t.palette.text.secondary, 0.08), borderRadius: 2 }}
+                    onClick={() =>
+                      window.open(`/admin/quotations/${row._id}/print`, "_blank", "noopener")
+                    }
+                  >
+                    <PrintIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="WhatsApp">
+                  <IconButton
+                    size="small"
+                    sx={{ color: WA_GREEN, bgcolor: alpha(WA_GREEN, 0.1), borderRadius: 2 }}
+                    onClick={() =>
+                      shareOnWhatsApp(
+                        `*Quotation ${row.quotationNumber}*\nTo: ${row.clientName}\nTotal: ${formatINRFull(row.totalAmount)}`
+                      )
+                    }
+                  >
+                    <WhatsAppIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
                 {isBuilder && (
@@ -337,7 +438,7 @@ export default function QuotationsPage() {
                     <Tooltip title="Edit Quotation">
                       <IconButton
                         size="small"
-                        sx={{ bgcolor: "primary.50", color: "primary.main" }}
+                        sx={{ color: "primary.main", bgcolor: (t) => alpha(t.palette.primary.main, 0.1), borderRadius: 2 }}
                         onClick={() => handleEdit(row)}
                       >
                         <EditIcon fontSize="small" />
@@ -346,7 +447,7 @@ export default function QuotationsPage() {
                     <Tooltip title="Approve">
                       <IconButton
                         size="small"
-                        sx={{ bgcolor: "success.50", color: "success.main" }}
+                        sx={{ color: "success.main", bgcolor: (t) => alpha(t.palette.success.main, 0.1), borderRadius: 2 }}
                         onClick={() => updateStatus(row._id, "Approved")}
                       >
                         <ApproveIcon fontSize="small" />
@@ -355,7 +456,7 @@ export default function QuotationsPage() {
                     <Tooltip title="Delete">
                       <IconButton
                         size="small"
-                        sx={{ bgcolor: "error.50", color: "error.main" }}
+                        sx={{ color: "error.main", bgcolor: (t) => alpha(t.palette.error.main, 0.1), borderRadius: 2 }}
                         onClick={() => handleDelete(row._id)}
                       >
                         <DeleteIcon fontSize="small" />
@@ -367,7 +468,11 @@ export default function QuotationsPage() {
             ),
           },
         ]}
-        data={quotations}
+        data={quotations.filter((q) =>
+          !searchQuery ||
+          q.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          q.quotationNumber.toLowerCase().includes(searchQuery.toLowerCase())
+        )}
         loading={loading}
         emptyMessage="No Quotations Found. Start by creating your first project estimate."
       />
@@ -378,7 +483,8 @@ export default function QuotationsPage() {
         onClose={() => setOpenForm(false)}
         fullWidth
         maxWidth="lg"
-        PaperProps={{ sx: { borderRadius: 4, maxHeight: "90vh" } }}
+        fullScreen={isMobile}
+        PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4, maxHeight: isMobile ? "100vh" : "90vh" } }}
       >
         <DialogTitle
           component="div"
@@ -503,213 +609,370 @@ export default function QuotationsPage() {
               </Button>
             </Box>
 
-            {/* Table Header for Items */}
-            <Box
-              sx={{ display: { xs: "none", md: "flex" }, px: 2, mb: 1, gap: 2 }}
-            >
-              <Typography
-                variant="caption"
-                sx={{ flex: 5, fontWeight: 700, color: "text.disabled" }}
-              >
-                DESCRIPTION OF WORK
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ flex: 1.5, fontWeight: 700, color: "text.disabled" }}
-              >
-                QTY
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ flex: 2, fontWeight: 700, color: "text.disabled" }}
-              >
-                UNIT
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ flex: 2, fontWeight: 700, color: "text.disabled" }}
-              >
-                RATE (₹)
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  flex: 2,
-                  fontWeight: 700,
-                  color: "text.disabled",
-                  textAlign: "right",
-                }}
-              >
-                AMOUNT
-              </Typography>
-              <Box sx={{ width: 40 }} />
-            </Box>
-
             <Stack spacing={1.5}>
-              {formData.items.map((item, idx) => (
-                <Box
-                  key={idx}
-                  sx={{
-                    display: "flex",
-                    flexDirection: { xs: "column", md: "row" },
-                    gap: 2,
-                    alignItems: { xs: "stretch", md: "center" },
-                    p: 2,
-                    bgcolor: "white",
-                    borderRadius: 2,
-                    border: "1px solid",
-                    borderColor: "grey.100",
-                    transition: "0.2s",
-                    "&:hover": {
-                      borderColor: "primary.light",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                    },
-                  }}
-                >
-                  <TextField
-                    sx={{ flex: 5 }}
-                    size="small"
-                    placeholder="Work description..."
-                    value={item.description}
-                    onChange={(e) =>
-                      handleItemChange(idx, "description", e.target.value)
-                    }
-                  />
-                  <TextField
-                    sx={{ flex: 1.5 }}
-                    size="small"
-                    type="number"
-                    value={item.quantity}
-                    onChange={(e) =>
-                      handleItemChange(idx, "quantity", e.target.value)
-                    }
-                  />
-                  <Select
-                    sx={{ flex: 2 }}
-                    size="small"
-                    value={item.unit}
-                    onChange={(e) =>
-                      handleItemChange(idx, "unit", e.target.value)
-                    }
-                  >
-                    {["Sq.Ft", "Bags", "Nos", "Kg", "Brass", "Lump Sum"].map(
-                      (u) => (
-                        <MenuItem key={u} value={u}>
-                          {u}
-                        </MenuItem>
-                      )
-                    )}
-                  </Select>
-                  <TextField
-                    sx={{ flex: 2 }}
-                    size="small"
-                    type="number"
-                    placeholder="0.00"
-                    value={item.rate}
-                    onChange={(e) =>
-                      handleItemChange(idx, "rate", e.target.value)
-                    }
-                  />
-                  <Typography
+              {formData.items.map((item, idx) => {
+                const recomputed = recomputeItem(item);
+                const breakdown =
+                  Number(item.materialRate || 0) +
+                  Number(item.labourRate || 0) +
+                  Number(item.equipmentRate || 0) +
+                  Number(item.otherRate || 0);
+                return (
+                  <Paper
+                    key={idx}
+                    variant="outlined"
                     sx={{
-                      flex: 2,
-                      textAlign: "right",
-                      fontWeight: 700,
-                      color: "text.secondary",
+                      p: 2,
+                      borderRadius: 2,
+                      borderColor: "grey.200",
+                      bgcolor: "white",
+                      transition: "0.2s",
+                      "&:hover": { borderColor: "primary.light" },
                     }}
                   >
-                    ₹{item.amount.toLocaleString()}
-                  </Typography>
-                  <IconButton
-                    flex-basis="40px"
-                    color="error"
-                    size="small"
-                    onClick={() => handleRemoveItem(idx)}
-                    disabled={formData.items.length === 1}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
-                </Box>
-              ))}
+                    {/* Row 1: Section + Item# + HSN + delete */}
+                    <Grid container spacing={1.5} sx={{ mb: 1 }}>
+                      <Grid size={{ xs: 12, sm: 5, md: 5 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Section (optional)"
+                          placeholder="e.g. Civil Work"
+                          value={item.sectionTitle || ""}
+                          onChange={(e) => handleItemChange(idx, "sectionTitle", e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 4, sm: 2, md: 2 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Item #"
+                          placeholder="1.1"
+                          value={item.itemNumber || ""}
+                          onChange={(e) => handleItemChange(idx, "itemNumber", e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 8, sm: 3, md: 3 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="HSN/SAC"
+                          placeholder="9954"
+                          value={item.hsnCode || ""}
+                          onChange={(e) => handleItemChange(idx, "hsnCode", e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 2, md: 2 }} sx={{ display: "flex", justifyContent: "flex-end" }}>
+                        <IconButton
+                          color="error"
+                          size="small"
+                          onClick={() => handleRemoveItem(idx)}
+                          disabled={formData.items.length === 1}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Grid>
+                    </Grid>
+
+                    {/* Row 2: Description (full width) */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      multiline
+                      label="Description of Work"
+                      placeholder="e.g. RCC M25 concrete work including formwork, reinforcement..."
+                      value={item.description}
+                      onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                      sx={{ mb: 1 }}
+                    />
+
+                    {/* Row 3: Qty + Unit + Rate + Amount */}
+                    <Grid container spacing={1.5}>
+                      <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Qty"
+                          inputProps={{ inputMode: "decimal" }}
+                          value={item.quantity}
+                          onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3, md: 2 }}>
+                        <FormControl fullWidth size="small">
+                          <InputLabel>Unit</InputLabel>
+                          <Select
+                            label="Unit"
+                            value={item.unit}
+                            onChange={(e) => handleItemChange(idx, "unit", e.target.value)}
+                          >
+                            {["Sq.Ft", "Sq.Mt", "Cu.Mt", "Brass", "Bags", "Nos", "Kg", "MT", "RMT", "Lump Sum"].map((u) => (
+                              <MenuItem key={u} value={u}>
+                                {u}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label={breakdown > 0 ? "Rate (auto from analysis)" : "Rate (₹)"}
+                          inputProps={{ inputMode: "decimal" }}
+                          value={recomputed.rate}
+                          disabled={breakdown > 0}
+                          onChange={(e) => handleItemChange(idx, "rate", e.target.value)}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 6, sm: 3, md: 3 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          label="Amount"
+                          value={`₹${recomputed.amount.toLocaleString("en-IN")}`}
+                          InputProps={{ readOnly: true, sx: { fontWeight: 700, bgcolor: "grey.50" } }}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <Button
+                          fullWidth
+                          size="small"
+                          variant="outlined"
+                          endIcon={<ExpandMoreIcon
+                            sx={{
+                              transform: expandedAnalysis === idx ? "rotate(180deg)" : "none",
+                              transition: "transform 0.2s",
+                            }}
+                          />}
+                          onClick={() => setExpandedAnalysis(expandedAnalysis === idx ? null : idx)}
+                          sx={{ textTransform: "none", fontWeight: 700, height: 40 }}
+                        >
+                          Analysis
+                        </Button>
+                      </Grid>
+                    </Grid>
+
+                    {/* Rate analysis (collapsible) */}
+                    <Accordion
+                      expanded={expandedAnalysis === idx}
+                      onChange={() => setExpandedAnalysis(expandedAnalysis === idx ? null : idx)}
+                      disableGutters
+                      elevation={0}
+                      sx={{ mt: 1, bgcolor: "transparent", "&:before": { display: "none" } }}
+                    >
+                      <AccordionSummary sx={{ display: "none" }} />
+                      <AccordionDetails sx={{ p: 0, pt: 1 }}>
+                        <Box sx={{ p: 2, bgcolor: "grey.50", borderRadius: 2 }}>
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, textTransform: "uppercase", mb: 1, display: "block" }}>
+                            Rate Analysis (per {item.unit || "unit"}) — filling these auto-computes rate
+                          </Typography>
+                          <Grid container spacing={1.5}>
+                            <Grid size={{ xs: 6, sm: 3 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="number"
+                                label="Material ₹"
+                                inputProps={{ inputMode: "decimal" }}
+                                value={item.materialRate ?? 0}
+                                onChange={(e) => handleItemChange(idx, "materialRate", e.target.value)}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 3 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="number"
+                                label="Labour ₹"
+                                inputProps={{ inputMode: "decimal" }}
+                                value={item.labourRate ?? 0}
+                                onChange={(e) => handleItemChange(idx, "labourRate", e.target.value)}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 3 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="number"
+                                label="Equipment ₹"
+                                inputProps={{ inputMode: "decimal" }}
+                                value={item.equipmentRate ?? 0}
+                                onChange={(e) => handleItemChange(idx, "equipmentRate", e.target.value)}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 6, sm: 3 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                type="number"
+                                label="Overhead+Profit ₹"
+                                inputProps={{ inputMode: "decimal" }}
+                                value={item.otherRate ?? 0}
+                                onChange={(e) => handleItemChange(idx, "otherRate", e.target.value)}
+                              />
+                            </Grid>
+                            <Grid size={{ xs: 12 }}>
+                              <TextField
+                                fullWidth
+                                size="small"
+                                label="Notes (optional)"
+                                placeholder="Specification / brand / remarks"
+                                value={item.notes || ""}
+                                onChange={(e) => handleItemChange(idx, "notes", e.target.value)}
+                              />
+                            </Grid>
+                          </Grid>
+                        </Box>
+                      </AccordionDetails>
+                    </Accordion>
+                  </Paper>
+                );
+              })}
             </Stack>
 
-            <Box sx={{ mt: 4, display: "flex", justifyContent: "flex-end" }}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 4,
-                  bgcolor: "primary.main",
-                  color: "white",
-                  borderRadius: 4,
-                  minWidth: 350,
-                }}
-              >
-                <Stack spacing={2}>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      opacity: 0.8,
-                    }}
-                  >
-                    <Typography fontSize={14}>Subtotal Basis</Typography>
-                    <Typography fontWeight={600}>
-                      ₹{calculateSubtotal().toLocaleString()}
-                    </Typography>
-                  </Box>
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Typography fontSize={14}>Taxation (%)</Typography>
-                    <TextField
-                      size="small"
-                      type="number"
-                      sx={{
-                        width: 70,
-                        "& .MuiInputBase-input": {
-                          color: "white",
-                          py: 0.5,
-                          textAlign: "right",
-                        },
-                        "& .MuiOutlinedInput-notchedOutline": {
-                          borderColor: "rgba(255,255,255,0.3)",
-                        },
-                      }}
-                      value={formData.taxPercentage}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          taxPercentage: Number(e.target.value),
-                        })
-                      }
-                    />
-                  </Box>
-                  <Divider sx={{ bgcolor: "rgba(255,255,255,0.2)" }} />
-                  <Box
-                    sx={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                    }}
-                  >
-                    <Typography variant="h6" fontWeight={400}>
-                      Grand Total
-                    </Typography>
-                    <Typography variant="h4" fontWeight={900}>
-                      ₹
-                      {(
-                        calculateSubtotal() +
-                        (calculateSubtotal() * formData.taxPercentage) / 100
-                      ).toLocaleString()}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Paper>
-            </Box>
+            <Grid container spacing={2} sx={{ mt: 3 }}>
+              {/* Left: GST + discount + validity controls */}
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper variant="outlined" sx={{ p: 2.5, borderRadius: 3, borderColor: "grey.200" }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, mb: 2, color: "primary.main", textTransform: "uppercase" }}>
+                    Tax &amp; Settings
+                  </Typography>
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>GST Type</InputLabel>
+                        <Select
+                          label="GST Type"
+                          value={formData.gstType}
+                          onChange={(e) =>
+                            setFormData({ ...formData, gstType: e.target.value as GstType })
+                          }
+                        >
+                          <MenuItem value="NONE">No GST / Simple Tax %</MenuItem>
+                          <MenuItem value="CGST_SGST">CGST + SGST (intra-state)</MenuItem>
+                          <MenuItem value="IGST">IGST (inter-state)</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    {formData.gstType === "NONE" && (
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="Tax %"
+                          inputProps={{ inputMode: "decimal" }}
+                          value={formData.taxPercentage}
+                          onChange={(e) => setFormData({ ...formData, taxPercentage: Number(e.target.value) })}
+                        />
+                      </Grid>
+                    )}
+                    {formData.gstType === "CGST_SGST" && (
+                      <>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="CGST %"
+                            inputProps={{ inputMode: "decimal" }}
+                            value={formData.cgstPercentage}
+                            onChange={(e) => setFormData({ ...formData, cgstPercentage: Number(e.target.value) })}
+                          />
+                        </Grid>
+                        <Grid size={{ xs: 6, sm: 3 }}>
+                          <TextField
+                            fullWidth
+                            size="small"
+                            type="number"
+                            label="SGST %"
+                            inputProps={{ inputMode: "decimal" }}
+                            value={formData.sgstPercentage}
+                            onChange={(e) => setFormData({ ...formData, sgstPercentage: Number(e.target.value) })}
+                          />
+                        </Grid>
+                      </>
+                    )}
+                    {formData.gstType === "IGST" && (
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <TextField
+                          fullWidth
+                          size="small"
+                          type="number"
+                          label="IGST %"
+                          inputProps={{ inputMode: "decimal" }}
+                          value={formData.igstPercentage}
+                          onChange={(e) => setFormData({ ...formData, igstPercentage: Number(e.target.value) })}
+                        />
+                      </Grid>
+                    )}
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="number"
+                        label="Discount ₹"
+                        inputProps={{ inputMode: "decimal" }}
+                        value={formData.discountAmount}
+                        onChange={(e) => setFormData({ ...formData, discountAmount: Number(e.target.value) })}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        type="date"
+                        label="Valid Until"
+                        InputLabelProps={{ shrink: true }}
+                        value={formData.validUntil}
+                        onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+                      />
+                    </Grid>
+                  </Grid>
+                </Paper>
+              </Grid>
+
+              {/* Right: totals */}
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 3,
+                    bgcolor: "primary.main",
+                    color: "white",
+                    borderRadius: 3,
+                    height: "100%",
+                  }}
+                >
+                  <Stack spacing={1.5}>
+                    <Row label="Sub Total" value={formatINRFull(calculateSubtotal())} />
+                    {Number(formData.discountAmount) > 0 && (
+                      <Row label="Discount" value={`− ${formatINRFull(Number(formData.discountAmount))}`} />
+                    )}
+                    {formData.gstType === "CGST_SGST" && (
+                      <>
+                        <Row label={`CGST @ ${formData.cgstPercentage}%`} value={formatINRFull(taxBreakup.cgst)} />
+                        <Row label={`SGST @ ${formData.sgstPercentage}%`} value={formatINRFull(taxBreakup.sgst)} />
+                      </>
+                    )}
+                    {formData.gstType === "IGST" && (
+                      <Row label={`IGST @ ${formData.igstPercentage}%`} value={formatINRFull(taxBreakup.igst)} />
+                    )}
+                    {formData.gstType === "NONE" && Number(formData.taxPercentage) > 0 && (
+                      <Row label={`Tax @ ${formData.taxPercentage}%`} value={formatINRFull(taxBreakup.amount)} />
+                    )}
+                    <Divider sx={{ bgcolor: "rgba(255,255,255,0.25)" }} />
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <Typography variant="h6" fontWeight={500}>Grand Total</Typography>
+                      <Typography variant="h4" fontWeight={900}>{formatINRFull(grandTotal)}</Typography>
+                    </Box>
+                  </Stack>
+                </Paper>
+              </Grid>
+            </Grid>
           </Paper>
         </DialogContent>
         <DialogActions sx={{ p: 3, bgcolor: "grey.100" }}>
@@ -880,7 +1143,32 @@ export default function QuotationsPage() {
             </Stack>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 3 }}>
+        <DialogActions sx={{ p: 3, flexDirection: { xs: "column", sm: "row" }, gap: 1 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<PrintIcon />}
+            onClick={() => {
+              if (selectedQuote)
+                window.open(`/admin/quotations/${selectedQuote._id}/print`, "_blank", "noopener");
+            }}
+            sx={{ borderRadius: 3, py: 1.25, fontWeight: 800 }}
+          >
+            Print / PDF
+          </Button>
+          <Button
+            fullWidth
+            variant="outlined"
+            startIcon={<WhatsAppIcon sx={{ color: WA_GREEN }} />}
+            onClick={() => {
+              if (!selectedQuote) return;
+              const text = `*Quotation ${selectedQuote.quotationNumber}*\nTo: ${selectedQuote.clientName}\nTotal: ${formatINRFull(selectedQuote.totalAmount)}`;
+              shareOnWhatsApp(text);
+            }}
+            sx={{ borderRadius: 3, py: 1.25, fontWeight: 800 }}
+          >
+            WhatsApp
+          </Button>
           <Button
             fullWidth
             variant="contained"
@@ -889,12 +1177,34 @@ export default function QuotationsPage() {
               updateStatus(selectedQuote!._id, "Sent");
               setOpenView(false);
             }}
-            sx={{ borderRadius: 3, py: 1.5, fontWeight: 800 }}
+            sx={{ borderRadius: 3, py: 1.25, fontWeight: 800 }}
           >
-            MARK AS SENT TO CLIENT
+            Mark as Sent
           </Button>
         </DialogActions>
       </Dialog>
+
+      {isBuilder && (
+        <GlassFab
+          color="primary"
+          onClick={() => {
+            setSelectedQuote(null);
+            setFormData(defaultForm());
+            setOpenForm(true);
+          }}
+        >
+          <AddIcon />
+        </GlassFab>
+      )}
+    </Box>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <Box sx={{ display: "flex", justifyContent: "space-between", opacity: 0.85 }}>
+      <Typography fontSize={14}>{label}</Typography>
+      <Typography fontWeight={600}>{value}</Typography>
     </Box>
   );
 }

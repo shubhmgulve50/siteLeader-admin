@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Box, useMediaQuery } from "@mui/material";
+import { useLayoutEffect, useState } from "react";
+import { Box } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import Sidebar from "@/components/Sidebar";
 import Topbar from "@/components/Topbar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 export default function AdminLayout({
   children,
@@ -12,19 +13,22 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const [sidebarOpen, setSidebarOpen] = useState(!isMobile);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    setSidebarOpen(!isMobile);
-  }, [isMobile]);
+  useLayoutEffect(() => {
+    const mql = window.matchMedia(
+      `(min-width:${theme.breakpoints.values.md}px)`
+    );
+    setSidebarOpen(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setSidebarOpen(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, [theme.breakpoints.values.md]);
 
-  const handleSidebarToggle = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
+  const handleSidebarToggle = () => setSidebarOpen((prev) => !prev);
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh" }}>
+    <Box sx={{ display: "flex", minHeight: "100vh", overflow: "hidden", width: "100%" }}>
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -43,10 +47,21 @@ export default function AdminLayout({
         }}
       >
         <Topbar onMenuClick={handleSidebarToggle} isSidebarOpen={sidebarOpen} />
-        <Box sx={{ p: 3, flexGrow: 1, overflow: "auto", height: "100%" }}>
+        <Box
+          sx={{
+            p: { xs: 1, sm: 3 },
+            pb: { xs: "72px", md: 3 },
+            flexGrow: 1,
+            overflow: "auto",
+            minHeight: 0,
+          }}
+        >
           {children}
         </Box>
       </Box>
+
+      {/* Mobile bottom navigation — hidden on md+ */}
+      <MobileBottomNav />
     </Box>
   );
 }

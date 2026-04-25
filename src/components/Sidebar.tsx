@@ -16,8 +16,12 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
-import { BOTTOM_MENU_ITEMS, MAIN_MENU_ITEMS } from "@/constants/constants";
+import { useTheme } from "@mui/material/styles";
+import { BOTTOM_MENU_ITEMS, MAIN_MENU_ITEMS, SUPER_ADMIN_MENU_ITEMS } from "@/constants/constants";
+import apiEndpoints from "@/constants/apiEndpoints";
+import api from "@/lib/axios";
 import handleLogout from "@/utils/handleLogout";
+import { useT } from "@/i18n/LocaleProvider";
 import BulletIcon from "./BulletIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
 import GradientBox from "./GradientBox";
@@ -32,10 +36,15 @@ interface SidebarProps {
 const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
   const router = useRouter();
   const pathname = usePathname();
-  const isXlDown = useMediaQuery("(max-width:1520px)");
+  const theme = useTheme();
+  const isXlDown = useMediaQuery(theme.breakpoints.down("md"));
+  const t = useT();
+  const labelOf = (item: { labelKey?: string; label: string }) =>
+    item.labelKey ? t(item.labelKey) : item.label;
 
   const [loading, setLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
   const [submenuStates, setSubmenuStates] = useState<{
     [key: string]: boolean;
   }>({});
@@ -49,6 +58,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
 
   useEffect(() => {
     setIsClient(true);
+    api.get(apiEndpoints.adminProfile).then((r) => setUserRole(r.data.data.role)).catch(() => {});
   }, []);
 
   const isActivePath = (path: string) => {
@@ -89,7 +99,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
 
           <Box sx={{ p: 2, color: "white" }}>
             <Box sx={{ p: 1, color: "white" }}>
-              {MAIN_MENU_ITEMS.map((menuItem: any) => (
+              {MAIN_MENU_ITEMS.filter((m: any) => !m.hidden).map((menuItem: any) => (
                 <Box key={menuItem.id}>
                   <Box
                     sx={{
@@ -122,7 +132,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                         fontWeight: isActivePath(menuItem.path) ? 700 : 500,
                       }}
                     >
-                      {menuItem.label}
+                      {labelOf(menuItem)}
                     </Typography>
                     {menuItem.hasSubmenu &&
                       (submenuStates[menuItem.id] ? (
@@ -161,7 +171,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                                   : "#f1f1f1",
                               }}
                             >
-                              {item.label}
+                              {labelOf(item)}
                             </Typography>
                           </Box>
                         ))}
@@ -172,6 +182,38 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
               ))}
             </Box>
           </Box>
+
+          {/* Super Admin section — only when role === SUPER_ADMIN */}
+          {userRole === "SUPER_ADMIN" && (
+            <Box sx={{ px: 3, pb: 1, color: "white" }}>
+              <Divider sx={{ bgcolor: "rgba(255,255,255,0.2)", mb: 1 }} />
+              <Typography sx={{ fontSize: 11, mb: 0.5, opacity: 0.7, fontWeight: 700, letterSpacing: 1 }}>
+                SUPER ADMIN
+              </Typography>
+              {SUPER_ADMIN_MENU_ITEMS.map((menuItem: any) => (
+                <Box
+                  key={menuItem.id}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    px: 2,
+                    py: 1.5,
+                    cursor: "pointer",
+                    borderRadius: 2,
+                    bgcolor: isActivePath(menuItem.path) ? "rgba(255,255,255,0.15)" : "transparent",
+                    "&:hover": { bgcolor: "rgba(255,255,255,0.08)" },
+                  }}
+                  onClick={() => { router.push(menuItem.path); if (isXlDown) onClose(); }}
+                >
+                  {menuItem.icon && React.createElement(menuItem.icon)}
+                  <Typography sx={{ fontSize: 15, mx: 2, fontWeight: isActivePath(menuItem.path) ? 700 : 500 }}>
+                    {labelOf(menuItem)}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          )}
         </Box>
 
         <Box
@@ -206,7 +248,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                 "&:hover": { bgcolor: "rgba(255,255,255,0.1)" },
               }}
               onClick={async () => {
-                if (item.label === "Logout") {
+                if (item.labelKey === "menu.logout" || item.label === "Logout") {
                   setConfirmDialog({
                     open: true,
                     title: "Logout",
@@ -231,7 +273,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                   fontWeight: isActivePath(item.path) ? 700 : 500,
                 }}
               >
-                {item.label}
+                {labelOf(item)}
               </Typography>
             </Box>
           ))}

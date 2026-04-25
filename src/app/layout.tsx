@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import { CssBaseline } from "@mui/material";
 import ThemeRegistry from "@/providers/ThemeRegistry";
+import { LocaleProvider } from "@/i18n/LocaleProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,12 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <Toaster />
-        <ThemeRegistry>
-          <CssBaseline />
-          {children}
-        </ThemeRegistry>
+        <LocaleProvider>
+          <ThemeRegistry>
+            <CssBaseline />
+            {children}
+          </ThemeRegistry>
+        </LocaleProvider>
       </body>
     </html>
   );

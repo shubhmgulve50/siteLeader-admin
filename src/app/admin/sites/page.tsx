@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { toast } from "react-hot-toast";
 import React, { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   Add as AddIcon,
   AssignmentInd as AttendanceIcon,
+  Construction as ConstructionIcon,
   Delete as DeleteIcon,
   Edit as EditIcon,
   AccountBalanceWallet as FinanceIcon,
@@ -14,6 +15,7 @@ import {
   HistoryEdu as LogIcon,
   Inventory2 as MaterialIcon,
   Refresh as RefreshIcon,
+  WhatsApp as WhatsAppIcon,
 } from "@mui/icons-material";
 import {
   Alert,
@@ -32,14 +34,19 @@ import {
   MenuItem,
   TextField,
   Typography,
+  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import GlassFab from "@/components/common/GlassFab";
 import GenericTable from "@/components/common/GenericTable";
 import PageHeaderWithActions from "@/components/PageHeaderWithActions";
 import apiEndpoints from "@/constants/apiEndpoints";
 import { ROLE } from "@/constants/constants";
 import api from "@/lib/axios";
+import { buildSiteSummary, shareOnWhatsApp } from "@/utils/share";
+import { useT } from "@/i18n/LocaleProvider";
+import { HEADER_BTN_SX, WA_GREEN } from "@/styles/tokens";
 
 interface Site {
   _id: string;
@@ -72,7 +79,10 @@ interface User {
 export default function SitesPage() {
   const router = useRouter();
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const t = useT();
   const [sites, setSites] = useState<Site[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -250,10 +260,10 @@ export default function SitesPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3 } }}>
       <PageHeaderWithActions
-        pageTitle="Site Management"
-        pageIcon={<RefreshIcon />}
+        pageTitle={t("page.sitesTitle")}
+        pageIcon={<ConstructionIcon />}
         onRefreshAction={fetchSites}
-        handleSearch={(v) => console.log("Search:", v)}
+        handleSearch={(q) => setSearchQuery(q)}
         actions={[
           canManage && (
             <Button
@@ -261,15 +271,9 @@ export default function SitesPage() {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenDialog()}
-              sx={{
-                borderRadius: 2,
-                px: 3,
-                bgcolor: "white",
-                color: "primary.main",
-                "&:hover": { bgcolor: alpha("#fff", 0.9) },
-              }}
+              sx={{ ...HEADER_BTN_SX, display: { xs: "none", md: "inline-flex" } }}
             >
-              New Site
+              {t("action.addSite")}
             </Button>
           ),
         ].filter((btn): btn is React.ReactElement => Boolean(btn))}
@@ -282,15 +286,18 @@ export default function SitesPage() {
       )}
 
       <GenericTable
+        mobileCard
         columns={[
           {
             id: "name",
             label: "Site Name",
+            isPrimaryOnMobile: true,
             render: (v) => <Typography>{v}</Typography>,
           },
           {
             id: "phoneNumber",
             label: "Contact",
+            mobileLabel: "Phone",
             render: (v) => (
               <Typography variant="body2" sx={{ fontWeight: 500 }}>
                 {v || "N/A"}
@@ -300,6 +307,7 @@ export default function SitesPage() {
           {
             id: "address",
             label: "Location",
+            hiddenOnMobile: true,
             render: (v) => (
               <Typography
                 variant="caption"
@@ -318,6 +326,7 @@ export default function SitesPage() {
           {
             id: "status",
             label: "Status",
+            isSecondaryBadge: true,
             render: (v) => (
               <Chip
                 label={v || "Not Started"}
@@ -351,6 +360,7 @@ export default function SitesPage() {
           {
             id: "createdAt",
             label: "Onboarded",
+            hiddenOnMobile: true,
             render: (v) =>
               new Date(v).toLocaleDateString("en-IN", {
                 day: "2-digit",
@@ -364,6 +374,7 @@ export default function SitesPage() {
                   id: "actions",
                   label: "Actions",
                   align: "right" as const,
+                  isActionColumn: true,
                   render: (_: any, row: Site) => (
                     <>
                       <IconButton
@@ -382,6 +393,19 @@ export default function SitesPage() {
                         }}
                       >
                         <InfoIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => shareOnWhatsApp(buildSiteSummary(row))}
+                        sx={{
+                          color: WA_GREEN,
+                          bgcolor: alpha(WA_GREEN, 0.08),
+                          borderRadius: 2,
+                          mr: 1,
+                          "&:hover": { bgcolor: alpha(WA_GREEN, 0.15) },
+                        }}
+                      >
+                        <WhatsAppIcon fontSize="small" />
                       </IconButton>
                       <IconButton
                         size="small"
@@ -422,7 +446,12 @@ export default function SitesPage() {
               ]
             : []),
         ]}
-        data={sites}
+        data={sites.filter((s) =>
+          !searchQuery ||
+          s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.clientName || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (s.city || "").toLowerCase().includes(searchQuery.toLowerCase())
+        )}
         loading={loading}
         emptyMessage="No sites found. Add your first site!"
       />
@@ -432,8 +461,9 @@ export default function SitesPage() {
         open={openDialog}
         onClose={handleCloseDialog}
         fullWidth
-        maxWidth="md" // Larger for the detailed form
-        PaperProps={{ sx: { borderRadius: 4, p: 1 } }}
+        maxWidth="md"
+        fullScreen={isMobile}
+        PaperProps={{ sx: { borderRadius: isMobile ? 0 : 4, p: isMobile ? 0 : 1 } }}
       >
         <DialogTitle sx={{ fontWeight: 800, fontSize: "1.5rem", pb: 1 }}>
           {selectedSite ? "Site Data Audit" : "Establish New Site"}
@@ -879,6 +909,12 @@ export default function SitesPage() {
           </Box>
         )}
       </Drawer>
+
+      {canManage && (
+        <GlassFab color="primary" onClick={() => handleOpenDialog()}>
+          <AddIcon />
+        </GlassFab>
+      )}
     </Box>
   );
 }
