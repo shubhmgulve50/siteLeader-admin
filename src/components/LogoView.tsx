@@ -23,8 +23,8 @@ export default function LogoView({ clickable = true }: LogoViewProps) {
       <Image
         src="/images/site_leader.png"
         alt="logo"
-        width={180}
-        height={50}
+        width={140}
+        height={40}
         priority
         style={{ objectFit: "contain", maxWidth: "100%", height: "auto" }}
       />

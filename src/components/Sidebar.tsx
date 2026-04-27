@@ -81,7 +81,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
         <Box sx={{ flex: 1, overflowY: "auto" }}>
           <Box
             sx={{
-              height: "70px",
+              height: "56px",
               display: "flex",
               px: 1.5,
               alignItems: "center",
@@ -97,8 +97,8 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
 
           <Divider sx={{ bgcolor: "rgba(255, 255, 255, 0.2)" }} />
 
-          <Box sx={{ p: 2, color: "white" }}>
-            <Box sx={{ p: 1, color: "white" }}>
+          <Box sx={{ p: 1, color: "white" }}>
+            <Box sx={{ p: 0, color: "white" }}>
               {MAIN_MENU_ITEMS.filter((m: any) => !m.hidden).map((menuItem: any) => (
                 <Box key={menuItem.id}>
                   <Box
@@ -107,7 +107,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                       flexDirection: "row",
                       alignItems: "center",
                       paddingX: 2,
-                      paddingY: 2,
+                      paddingY: 1,
                       cursor: "pointer",
                       borderRadius: 2,
                       bgcolor: isActivePath(menuItem.path)
@@ -127,7 +127,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                     {menuItem.icon && React.createElement(menuItem.icon)}
                     <Typography
                       sx={{
-                        fontSize: 16,
+                        fontSize: 15,
                         mx: 2,
                         fontWeight: isActivePath(menuItem.path) ? 700 : 500,
                       }}
@@ -198,7 +198,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                     flexDirection: "row",
                     alignItems: "center",
                     px: 2,
-                    py: 1.5,
+                    py: 1,
                     cursor: "pointer",
                     borderRadius: 2,
                     bgcolor: isActivePath(menuItem.path) ? "rgba(255,255,255,0.15)" : "transparent",
@@ -207,7 +207,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                   onClick={() => { router.push(menuItem.path); if (isXlDown) onClose(); }}
                 >
                   {menuItem.icon && React.createElement(menuItem.icon)}
-                  <Typography sx={{ fontSize: 15, mx: 2, fontWeight: isActivePath(menuItem.path) ? 700 : 500 }}>
+                  <Typography sx={{ fontSize: 15, mx: 1.5, fontWeight: isActivePath(menuItem.path) ? 700 : 500 }}>
                     {labelOf(menuItem)}
                   </Typography>
                 </Box>
@@ -223,6 +223,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
             color: "white",
             cursor: "pointer",
             p: 2,
+            pb: { xs: 10, md: 2 },
             borderTop: "1px solid rgba(255,255,255,0.15)",
             mt: "auto",
           }}
@@ -240,7 +241,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
                 flexDirection: "row",
                 alignItems: "center",
                 paddingX: 2,
-                paddingY: 1.5,
+                paddingY: 1,
                 borderRadius: 2,
                 bgcolor: isActivePath(item.path)
                   ? "rgba(255,255,255,0.15)"
@@ -268,7 +269,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
               {item.icon && React.createElement(item.icon)}
               <Typography
                 sx={{
-                  fontSize: 16,
+                  fontSize: 15,
                   mx: 2,
                   fontWeight: isActivePath(item.path) ? 700 : 500,
                 }}
