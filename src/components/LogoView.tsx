@@ -21,7 +21,7 @@ export default function LogoView({ clickable = true }: LogoViewProps) {
       }}
     >
       <Image
-        src="/images/site-leader.jpg"
+        src="/images/site_leader.png"
         alt="logo"
         width={180}
         height={50}

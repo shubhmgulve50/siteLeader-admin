@@ -91,7 +91,8 @@ const LoginForm = () => {
       component="main"
       sx={{
         width: "100vw",
-        minHeight: "100vh",
+        height: "100dvh",
+        overflow: "auto",
         background:
           theme.palette.mode === "dark"
             ? `radial-gradient(circle at top right, ${theme.palette.primary.main}22, #121212)`

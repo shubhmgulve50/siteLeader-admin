@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Close, Delete, Refresh, Search } from "@mui/icons-material";
 import {
   Box,
+  Collapse,
   IconButton,
   InputAdornment,
   Paper,
@@ -42,6 +43,8 @@ export default function PageHeaderWithActions({
   showSearch = true,
 }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
@@ -51,10 +54,27 @@ export default function PageHeaderWithActions({
     }
   };
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    if (handleSearch) handleSearch(e.target.value);
+  };
+
+  const toggleSearch = () => {
+    setSearchOpen((prev) => {
+      if (!prev) setTimeout(() => inputRef.current?.focus(), 50);
+      else {
+        setSearchQuery("");
+        if (handleSearch) handleSearch("");
+      }
+      return !prev;
+    });
+  };
+
   const searchField = (
     <TextField
+      inputRef={inputRef}
       value={searchQuery}
-      onChange={(e) => setSearchQuery(e.target.value)}
+      onChange={handleSearchChange}
       onKeyDown={handleKeyDown}
       placeholder={placeholder}
       size="small"
@@ -151,15 +171,8 @@ export default function PageHeaderWithActions({
           </Typography>
         </Box>
 
-        {/* Right side: on desktop show search + actions; on mobile show only actions + refresh */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 1,
-            flexShrink: 0,
-          }}
-        >
+        {/* Right side */}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
           {selectedCount > 0 && (
             <Box
               sx={{
@@ -195,6 +208,23 @@ export default function PageHeaderWithActions({
           {/* Desktop search inside header */}
           {!isMobile && showSearch && handleSearch && searchField}
 
+          {/* Mobile search toggle icon */}
+          {isMobile && showSearch && handleSearch && (
+            <Tooltip title={searchOpen ? "Close search" : "Search"}>
+              <IconButton
+                color="inherit"
+                size="small"
+                onClick={toggleSearch}
+                sx={{
+                  bgcolor: searchOpen ? alpha("#fff", 0.25) : alpha("#fff", 0.1),
+                  "&:hover": { bgcolor: alpha("#fff", 0.2) },
+                }}
+              >
+                {searchOpen ? <Close fontSize="small" /> : <Search fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
+
           {/* Action buttons */}
           <Box sx={{ display: "flex", gap: 0.75 }}>
             {actions}
@@ -217,20 +247,22 @@ export default function PageHeaderWithActions({
         </Box>
       </GradientBox>
 
-      {/* Mobile search bar below header */}
+      {/* Mobile search bar — collapsible */}
       {isMobile && showSearch && handleSearch && (
-        <Paper
-          elevation={0}
-          sx={{
-            mt: 1.5,
-            px: 1.5,
-            py: 1,
-            borderRadius: 3,
-            border: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          {searchField}
-        </Paper>
+        <Collapse in={searchOpen} unmountOnExit>
+          <Paper
+            elevation={0}
+            sx={{
+              mt: 1.5,
+              px: 1.5,
+              py: 1,
+              borderRadius: 3,
+              border: `1px solid ${theme.palette.divider}`,
+            }}
+          >
+            {searchField}
+          </Paper>
+        </Collapse>
       )}
     </Box>
   );

@@ -280,23 +280,6 @@ export default function InvoicesPage() {
         pageTitle={t("page.invoicesTitle")}
         pageIcon={<InvoiceIcon />}
         onRefreshAction={fetchData}
-        actions={[
-          isBuilder && (
-            <Button
-              key="new"
-              variant="contained"
-              startIcon={<AddIcon />}
-              onClick={() => {
-                setSelected(null);
-                setFormData(defaultForm());
-                setOpenForm(true);
-              }}
-              sx={{ borderRadius: 2, px: 3, bgcolor: "white", color: "primary.main" }}
-            >
-              {t("action.newInvoice")}
-            </Button>
-          ),
-        ].filter(Boolean)}
       />
 
       <GenericTable
