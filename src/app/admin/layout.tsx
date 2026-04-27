@@ -32,13 +32,13 @@ export default function AdminLayout({
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        width={280}
+        width={240}
       />
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          width: { md: `calc(100% - ${sidebarOpen ? "280px" : "0px"})` },
+          width: { md: `calc(100% - ${sidebarOpen ? "240px" : "0px"})` },
           maxWidth: "100%",
           transition: "width 0.3s ease",
           display: "flex",

@@ -96,7 +96,8 @@ export default function MobileBottomNav() {
           borderRadius: 0,
           display: { xs: "block", md: "none" },
           backdropFilter: "blur(8px)",
-          bgcolor: alpha(theme.palette.background.paper, 0.95),
+          bgcolor: alpha(theme.palette.background.default, 0.97),
+          backgroundImage: "none",
         }}
       >
         <BottomNavigation
@@ -166,6 +167,8 @@ export default function MobileBottomNav() {
               borderRadius: "16px 16px 0 0",
               maxHeight: "75vh",
               pb: "env(safe-area-inset-bottom, 16px)",
+              bgcolor: "background.default",
+              backgroundImage: "none",
             },
           },
         }}
@@ -243,7 +246,7 @@ export default function MobileBottomNav() {
 
           <ListItemButton
             onClick={() => { setMoreOpen(false); setConfirmOpen(true); }}
-            sx={{ borderRadius: 2, color: "error.main", "& .MuiListItemIcon-root": { color: "error.main" } }}
+            sx={{ borderRadius: 2, color: "primary.main", "& .MuiListItemIcon-root": { color: "primary.main" } }}
           >
             <ListItemIcon sx={{ minWidth: 40 }}>
               <LogoutOutlined sx={{ fontSize: 20 }} />
