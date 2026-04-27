@@ -28,7 +28,7 @@ export default function AdminLayout({
   const handleSidebarToggle = () => setSidebarOpen((prev) => !prev);
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", overflow: "hidden", width: "100%" }}>
+    <Box sx={{ display: "flex", height: "100dvh", overflow: "hidden", width: "100%", maxWidth: "100vw" }}>
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -39,10 +39,12 @@ export default function AdminLayout({
         sx={{
           flexGrow: 1,
           width: { md: `calc(100% - ${sidebarOpen ? "280px" : "0px"})` },
+          maxWidth: "100%",
           transition: "width 0.3s ease",
           display: "flex",
           flexDirection: "column",
-          height: "100vh",
+          height: "100dvh",
+          overflowX: "hidden",
           ml: 0,
         }}
       >
@@ -53,6 +55,8 @@ export default function AdminLayout({
             pb: { xs: "72px", md: 3 },
             flexGrow: 1,
             overflow: "auto",
+            overflowX: "hidden",
+            maxWidth: "100%",
             minHeight: 0,
           }}
         >

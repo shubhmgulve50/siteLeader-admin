@@ -2,6 +2,12 @@
   outline: 1px dashed red !important;
 } */
 
+html,
+body {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 :root {
   --hover-bg: #cc1928; /* theme.palette.secondary.main */
   --selected-bg: #e94957; /* theme.palette.primary.main */
