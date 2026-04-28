@@ -45,6 +45,7 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
   const [loading, setLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [userRole, setUserRole] = useState<string>("");
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [submenuStates, setSubmenuStates] = useState<{
     [key: string]: boolean;
   }>({});
@@ -58,7 +59,10 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
 
   useEffect(() => {
     setIsClient(true);
-    api.get(apiEndpoints.adminProfile).then((r) => setUserRole(r.data.data.role)).catch(() => {});
+    api.get(apiEndpoints.adminProfile).then((r) => {
+      setUserRole(r.data.data.role);
+      setUserPermissions(r.data.data.permissions ?? []);
+    }).catch(() => {});
   }, []);
 
   const isActivePath = (path: string) => {
@@ -99,7 +103,13 @@ const Sidebar = ({ isOpen, width, onClose }: SidebarProps) => {
 
           <Box sx={{ p: 1, color: "white" }}>
             <Box sx={{ p: 0, color: "white" }}>
-              {MAIN_MENU_ITEMS.filter((m: any) => !m.hidden).map((menuItem: any) => (
+              {MAIN_MENU_ITEMS.filter((m: any) => {
+                if (m.hidden) return false;
+                if (userRole === "BUILDER" && m.permissionKey !== null) {
+                  return userPermissions.includes(m.permissionKey);
+                }
+                return true;
+              }).map((menuItem: any) => (
                 <Box key={menuItem.id}>
                   <Box
                     sx={{

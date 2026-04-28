@@ -36,6 +36,7 @@ export const MAIN_MENU_ITEMS = [
     icon: DashboardOutlined,
     path: "/admin/dashboard",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: null, // always visible
   },
   {
     id: "sites",
@@ -44,6 +45,7 @@ export const MAIN_MENU_ITEMS = [
     icon: BusinessOutlined,
     path: "/admin/sites",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "sites",
   },
   {
     id: "labours",
@@ -52,6 +54,7 @@ export const MAIN_MENU_ITEMS = [
     icon: PeopleAltOutlined,
     path: "/admin/labours",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "labour",
   },
   {
     id: "materials",
@@ -60,6 +63,7 @@ export const MAIN_MENU_ITEMS = [
     icon: Inventory2Outlined,
     path: "/admin/materials",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "materials",
   },
   {
     id: "finance",
@@ -68,6 +72,7 @@ export const MAIN_MENU_ITEMS = [
     icon: AccountBalanceWalletOutlined,
     path: "/admin/finance",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "finance",
   },
   {
     id: "quotations",
@@ -76,6 +81,7 @@ export const MAIN_MENU_ITEMS = [
     icon: RequestQuoteOutlined,
     path: "/admin/quotations",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "quotations",
   },
   {
     id: "invoices",
@@ -84,6 +90,7 @@ export const MAIN_MENU_ITEMS = [
     icon: ReceiptLongOutlined,
     path: "/admin/invoices",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR"],
+    permissionKey: "invoices",
   },
   {
     id: "reports",
@@ -92,6 +99,7 @@ export const MAIN_MENU_ITEMS = [
     icon: AssessmentOutlined,
     path: "/admin/reports",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR"],
+    permissionKey: "reports",
   },
 
   // === Tier 3 — hidden for V1 release. Routes still work via URL. ===
@@ -102,6 +110,7 @@ export const MAIN_MENU_ITEMS = [
     icon: DescriptionOutlined,
     path: "/admin/ra-bills",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "ra_bills",
     hidden: true,
   },
   {
@@ -111,6 +120,7 @@ export const MAIN_MENU_ITEMS = [
     icon: StoreOutlined,
     path: "/admin/vendors",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR"],
+    permissionKey: "vendors",
     hidden: true,
   },
   {
@@ -120,6 +130,7 @@ export const MAIN_MENU_ITEMS = [
     icon: AgricultureOutlined,
     path: "/admin/equipment",
     roles: ["SUPER_ADMIN", "BUILDER", "SUPERVISOR", "ENGINEER"],
+    permissionKey: "equipment",
     hidden: true,
   },
   {
@@ -129,6 +140,7 @@ export const MAIN_MENU_ITEMS = [
     icon: HistoryOutlined,
     path: "/admin/audit-log",
     roles: ["SUPER_ADMIN", "BUILDER"],
+    permissionKey: "audit_logs",
     hidden: true,
   },
 ];
