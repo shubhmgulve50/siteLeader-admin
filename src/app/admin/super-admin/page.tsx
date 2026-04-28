@@ -56,6 +56,7 @@ const ALL_MODULES = [
   { key: "finance",        label: "Finance" },
   { key: "invoices",       label: "Invoices" },
   { key: "quotations",     label: "Quotations" },
+  { key: "reports",        label: "Reports" },
   { key: "ra_bills",       label: "RA Bills" },
   { key: "vendors",        label: "Vendors" },
   { key: "milestones",     label: "Milestones" },
@@ -64,6 +65,8 @@ const ALL_MODULES = [
   { key: "labour_advance", label: "Labour Advance" },
   { key: "audit_logs",     label: "Audit Logs" },
 ];
+
+const DEFAULT_PERMISSIONS = ["sites", "labour", "finance", "quotations"];
 
 type VerifStatus = "ALL" | "PENDING" | "APPROVED" | "DENIED" | "SUSPENDED";
 
@@ -169,7 +172,7 @@ export default function SuperAdminPage() {
 
   const openPermDialog = (b: Builder) => {
     setPermDialog(b);
-    setSelectedPerms(b.permissions ?? []);
+    setSelectedPerms(b.permissions?.length ? b.permissions : DEFAULT_PERMISSIONS);
   };
 
   const handleSavePerms = async () => {
@@ -420,7 +423,7 @@ interface BuilderCardProps {
 }
 
 function BuilderCard({ builder: b, actionLoading, onApprove, onDeny, onSuspend, onReinstate, onVerifyEmail, onPermissions, onDelete }: BuilderCardProps) {
-  const isPending = b.verificationStatus === "PENDING";
+  const isPending = b.verificationStatus === "PENDING" || b.verificationStatus === null;
   const isApproved = b.verificationStatus === "APPROVED";
   const isDeniedOrSuspended = b.verificationStatus === "DENIED" || b.verificationStatus === "SUSPENDED";
 
