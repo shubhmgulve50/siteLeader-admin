@@ -79,6 +79,14 @@ export default function LabourTab({ siteId }: { siteId: string }) {
   const [allLabour, setAllLabour] = useState<Labour[]>([]);
   const [loading, setLoading] = useState(true);
   const [attendance, setAttendance] = useState<Record<string, string>>({});
+  const [builderId, setBuilderId] = useState<string>("");
+
+  useEffect(() => {
+    api.get(apiEndpoints.adminProfile).then((r) => {
+      const u = r.data.data;
+      setBuilderId(u.role === "BUILDER" ? u._id : u.builderId);
+    }).catch(() => {});
+  }, []);
 
   const [openAssign, setOpenAssign] = useState(false);
   const [selectedToAssign, setSelectedToAssign] = useState("");
@@ -91,6 +99,37 @@ export default function LabourTab({ siteId }: { siteId: string }) {
 
   // Calendar dialog
   const [calendarLabour, setCalendarLabour] = useState<Labour | null>(null);
+
+  // Create Labour dialog
+  const [openCreate, setOpenCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", mobile: "", type: "Helper", dailyWage: "" });
+  const [creating, setCreating] = useState(false);
+
+  const handleCreateLabour = async () => {
+    if (!createForm.name || !createForm.mobile || !createForm.dailyWage) {
+      return toast.error("Name, mobile and daily wage are required");
+    }
+    setCreating(true);
+    try {
+      const res = await api.post(apiEndpoints.labours.base, {
+        name: createForm.name,
+        mobile: createForm.mobile,
+        type: createForm.type,
+        dailyWage: Number(createForm.dailyWage),
+      });
+      const newLabour = res.data.data;
+      await api.post(apiEndpoints.sites.assignLabour, { siteId, labourId: newLabour._id, builderId });
+      toast.success("Labour created and assigned");
+      setOpenCreate(false);
+      setCreateForm({ name: "", mobile: "", type: "Helper", dailyWage: "" });
+      fetchData();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(msg || "Failed to create labour");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   // Advance dialog
   const [openAdvance, setOpenAdvance] = useState(false);
@@ -166,6 +205,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
       await api.post(apiEndpoints.sites.assignLabour, {
         siteId,
         labourId: selectedToAssign,
+        builderId,
       });
       toast.success("Labour assigned to site");
       setOpenAssign(false);
@@ -196,6 +236,7 @@ export default function LabourTab({ siteId }: { siteId: string }) {
       await api.post(apiEndpoints.sites.attendance, {
         siteId,
         attendanceData,
+        builderId,
       });
       toast.success("Attendance marked successfully");
       fetchSummary();
@@ -257,14 +298,24 @@ export default function LabourTab({ siteId }: { siteId: string }) {
         <Typography variant="h6" sx={{ fontWeight: 800 }}>
           Manage Site Labour
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setOpenAssign(true)}
-          sx={{ borderRadius: 2, width: { xs: "100%", sm: "auto" } }}
-        >
-          Assign Labour
-        </Button>
+        <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenCreate(true)}
+            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" }, fontWeight: 700 }}
+          >
+            New Labour
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenAssign(true)}
+            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" } }}
+          >
+            Assign Existing
+          </Button>
+        </Stack>
       </Stack>
 
       <TableContainer
@@ -532,6 +583,49 @@ export default function LabourTab({ siteId }: { siteId: string }) {
           * P: Present, HD: Half Day, A: Absent. Advances are scoped to this site in the selected month.
         </Typography>
       </Box>
+
+      {/* Create Labour Dialog */}
+      <Dialog open={openCreate} onClose={() => !creating && setOpenCreate(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 800 }}>Create New Labour</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <TextField
+              fullWidth size="small" label="Full Name *"
+              value={createForm.name}
+              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+            />
+            <TextField
+              fullWidth size="small" label="Mobile *" type="tel"
+              value={createForm.mobile}
+              onChange={(e) => setCreateForm({ ...createForm, mobile: e.target.value })}
+            />
+            <FormControl fullWidth size="small">
+              <InputLabel>Type</InputLabel>
+              <Select
+                label="Type"
+                value={createForm.type}
+                onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}
+              >
+                {["Mason", "Carpenter", "Helper", "Electrician", "Plumber", "Other"].map((t) => (
+                  <MenuItem key={t} value={t}>{t}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField
+              fullWidth size="small" label="Daily Wage ₹ *" type="number"
+              inputProps={{ inputMode: "decimal" }}
+              value={createForm.dailyWage}
+              onChange={(e) => setCreateForm({ ...createForm, dailyWage: e.target.value })}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setOpenCreate(false)} disabled={creating}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreateLabour} disabled={creating}>
+            {creating ? <CircularProgress size={18} color="inherit" /> : "Create & Assign"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Assign Labour Dialog */}
       <Dialog open={openAssign} onClose={() => setOpenAssign(false)} fullWidth maxWidth="xs">

@@ -51,6 +51,14 @@ export default function LogsTab({ siteId }: { siteId: string }) {
   const [loading, setLoading] = useState(true);
   const [openLogDialog, setOpenLogDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [builderId, setBuilderId] = useState<string>("");
+
+  useEffect(() => {
+    api.get(apiEndpoints.adminProfile).then((r) => {
+      const u = r.data.data;
+      setBuilderId(u.role === "BUILDER" ? u._id : u.builderId ?? "");
+    }).catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     workDone: "",
@@ -123,6 +131,7 @@ export default function LogsTab({ siteId }: { siteId: string }) {
       fd.append("siteId", siteId);
       fd.append("workDone", form.workDone);
       if (form.issues) fd.append("issues", form.issues);
+      if (builderId) fd.append("builderId", builderId);
       photos.forEach((f) => fd.append("images", f));
 
       await api.post(apiEndpoints.sites.logs, fd, {

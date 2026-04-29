@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Box } from "@mui/material";
 
@@ -20,13 +19,11 @@ export default function LogoView({ clickable = true }: LogoViewProps) {
         alignItems: "center",
       }}
     >
-      <Image
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
         src="/images/site_leader.png"
         alt="logo"
-        width={140}
-        height={40}
-        priority
-        style={{ objectFit: "contain", maxWidth: "100%", height: "auto" }}
+        style={{ width: 140, height: "auto", objectFit: "contain", maxWidth: "100%" }}
       />
     </Box>
   );

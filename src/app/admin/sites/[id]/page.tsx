@@ -526,23 +526,6 @@ export default function SiteDetailPage() {
         ))}
       </Grid>
 
-      {/* ── FINANCIAL STATS ── */}
-      <Typography variant="overline" color="text.secondary" sx={{ fontWeight: 800, mb: 1, display: "block", fontSize: "0.65rem" }}>
-        {t("site.financialStanding")}
-      </Typography>
-      <Grid container spacing={{ xs: 1, sm: 1.5 }} sx={{ mb: { xs: 2, sm: 4 } }}>
-        {[
-          { label: t("site.paidByClient"), value: formatINR(siteStats?.totalIncome || 0), color: ACCENT.success },
-          { label: t("site.totalExpense"), value: formatINR(siteStats?.totalExpense || 0), color: ACCENT.error },
-          { label: t("site.labourCost"), value: formatINR(siteStats?.labourExpense || 0), color: ACCENT.purple },
-          { label: t("site.currentBalance"), value: `${(siteStats?.balance || 0) >= 0 ? "+" : ""}${formatINR(siteStats?.balance || 0)}`, color: (siteStats?.balance || 0) >= 0 ? ACCENT.success : ACCENT.error },
-        ].map((stat) => (
-          <Grid size={{ xs: 6, md: 3 }} key={stat.label}>
-            <KpiCard label={stat.label} value={stat.value} color={stat.color} variant="soft" compact />
-          </Grid>
-        ))}
-      </Grid>
-
       {/* ── TABS ── */}
       <Paper
         elevation={0}
