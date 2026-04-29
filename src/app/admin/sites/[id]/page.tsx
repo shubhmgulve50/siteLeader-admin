@@ -568,8 +568,8 @@ export default function SiteDetailPage() {
 
         <Box sx={{ p: { xs: 1, sm: 2.5 } }}>
           {activeTab === 0 && <OverviewTab site={site} siteStats={siteStats} />}
-          {activeTab === 1 && <LogsTab siteId={site._id} />}
-          {activeTab === 2 && <LabourTab siteId={site._id} />}
+          {activeTab === 1 && <LogsTab siteId={site._id} builderId={site.builderId} />}
+          {activeTab === 2 && <LabourTab siteId={site._id} builderId={site.builderId} />}
           {activeTab === 3 && <MaterialTab siteId={site._id} />}
           {activeTab === 4 && <FinanceTab siteId={site._id} />}
           {activeTab === 5 && <MilestonesTab siteId={site._id} />}

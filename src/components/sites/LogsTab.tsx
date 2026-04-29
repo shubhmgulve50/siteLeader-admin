@@ -46,19 +46,11 @@ interface DailyLog {
 const MAX_PHOTOS = 10;
 const MAX_PHOTO_MB = 5;
 
-export default function LogsTab({ siteId }: { siteId: string }) {
+export default function LogsTab({ siteId, builderId }: { siteId: string; builderId: string }) {
   const [logs, setLogs] = useState<DailyLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [openLogDialog, setOpenLogDialog] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [builderId, setBuilderId] = useState<string>("");
-
-  useEffect(() => {
-    api.get(apiEndpoints.adminProfile).then((r) => {
-      const u = r.data.data;
-      setBuilderId(u.role === "BUILDER" ? u._id : u.builderId ?? "");
-    }).catch(() => {});
-  }, []);
 
   const [form, setForm] = useState({
     workDone: "",

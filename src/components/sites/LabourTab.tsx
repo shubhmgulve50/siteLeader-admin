@@ -74,19 +74,11 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-export default function LabourTab({ siteId }: { siteId: string }) {
+export default function LabourTab({ siteId, builderId }: { siteId: string; builderId: string }) {
   const [siteLabour, setSiteLabour] = useState<Labour[]>([]);
   const [allLabour, setAllLabour] = useState<Labour[]>([]);
   const [loading, setLoading] = useState(true);
   const [attendance, setAttendance] = useState<Record<string, string>>({});
-  const [builderId, setBuilderId] = useState<string>("");
-
-  useEffect(() => {
-    api.get(apiEndpoints.adminProfile).then((r) => {
-      const u = r.data.data;
-      setBuilderId(u.role === "BUILDER" ? u._id : u.builderId);
-    }).catch(() => {});
-  }, []);
 
   const [openAssign, setOpenAssign] = useState(false);
   const [selectedToAssign, setSelectedToAssign] = useState("");
