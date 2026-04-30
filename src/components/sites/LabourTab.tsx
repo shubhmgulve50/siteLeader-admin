@@ -10,11 +10,12 @@ import {
   Schedule as HalfDayIcon,
   CheckCircle as PresentIcon,
   Print as PrintIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import {
+  Avatar,
   Box,
   Button,
-  Card,
   Chip,
   CircularProgress,
   Dialog,
@@ -29,12 +30,6 @@ import {
   Paper,
   Select,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Tooltip,
   Typography,
@@ -44,7 +39,7 @@ import apiEndpoints from "@/constants/apiEndpoints";
 import api from "@/lib/axios";
 import { formatINRFull } from "@/utils/format";
 import AttendanceCalendarDialog from "./AttendanceCalendarDialog";
-import { TABLE_HEAD_SX } from "@/styles/tokens";
+import { ACCENT } from "@/styles/tokens";
 
 interface Labour {
   _id: string;
@@ -74,6 +69,16 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
+const ATTENDANCE_OPTIONS = [
+  { value: "Present", label: "Present", icon: <PresentIcon sx={{ fontSize: 16 }} />, color: "#16a34a" },
+  { value: "Half Day", label: "Half", icon: <HalfDayIcon sx={{ fontSize: 16 }} />, color: "#f59e0b" },
+  { value: "Absent", label: "Absent", icon: <AbsentIcon sx={{ fontSize: 16 }} />, color: "#dc2626" },
+];
+
+function initials(name: string) {
+  return name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
+}
+
 export default function LabourTab({ siteId, builderId }: { siteId: string; builderId: string }) {
   const [siteLabour, setSiteLabour] = useState<Labour[]>([]);
   const [allLabour, setAllLabour] = useState<Labour[]>([]);
@@ -89,10 +94,8 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
   const [summaryYear] = useState(new Date().getFullYear());
   const [loadingSummary, setLoadingSummary] = useState(false);
 
-  // Calendar dialog
   const [calendarLabour, setCalendarLabour] = useState<Labour | null>(null);
 
-  // Create Labour dialog
   const [openCreate, setOpenCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ name: "", mobile: "", type: "Helper", dailyWage: "" });
   const [creating, setCreating] = useState(false);
@@ -123,7 +126,6 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
     }
   };
 
-  // Advance dialog
   const [openAdvance, setOpenAdvance] = useState(false);
   const [advanceForm, setAdvanceForm] = useState({
     labourId: "",
@@ -163,17 +165,12 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
       setAllLabour(allRes.data.data);
 
       const initialAttendance: Record<string, string> = {};
-      assigned.forEach((l) => {
-        initialAttendance[l._id] = "Present";
-      });
+      assigned.forEach((l) => { initialAttendance[l._id] = "Present"; });
       const todayRecords: AttendanceRecord[] = attendanceRes.data.data;
       todayRecords.forEach((record) => {
-        if (record.labourId?._id) {
-          initialAttendance[record.labourId._id] = record.status;
-        }
+        if (record.labourId?._id) initialAttendance[record.labourId._id] = record.status;
       });
       setAttendance(initialAttendance);
-
       fetchSummary();
     } catch {
       toast.error("Failed to load labour data");
@@ -182,23 +179,14 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
     }
   }, [siteId, fetchSummary]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
   const handleAssign = async () => {
     if (!selectedToAssign) return;
     setSubmitting(true);
     try {
-      await api.post(apiEndpoints.sites.assignLabour, {
-        siteId,
-        labourId: selectedToAssign,
-        builderId,
-      });
+      await api.post(apiEndpoints.sites.assignLabour, { siteId, labourId: selectedToAssign, builderId });
       toast.success("Labour assigned to site");
       setOpenAssign(false);
       setSelectedToAssign("");
@@ -218,18 +206,12 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
   const saveAttendance = async () => {
     setSubmitting(true);
     try {
-      const attendanceData = Object.entries(attendance).map(
-        ([labourId, status]) => ({
-          labourId,
-          status,
-          date: new Date().toISOString().split("T")[0],
-        })
-      );
-      await api.post(apiEndpoints.sites.attendance, {
-        siteId,
-        attendanceData,
-        builderId,
-      });
+      const attendanceData = Object.entries(attendance).map(([labourId, status]) => ({
+        labourId,
+        status,
+        date: new Date().toISOString().split("T")[0],
+      }));
+      await api.post(apiEndpoints.sites.attendance, { siteId, attendanceData, builderId });
       toast.success("Attendance marked successfully");
       fetchSummary();
     } catch {
@@ -251,9 +233,7 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
   };
 
   const saveAdvance = async () => {
-    if (!advanceForm.labourId || !advanceForm.amount) {
-      return toast.error("Amount required");
-    }
+    if (!advanceForm.labourId || !advanceForm.amount) return toast.error("Amount required");
     setAdvanceSaving(true);
     try {
       await api.post(apiEndpoints.labourAdvances.base, {
@@ -272,30 +252,40 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
   };
 
   const openRegister = () => {
-    const url = `/admin/labour-register/print?siteId=${siteId}&month=${summaryMonth}&year=${summaryYear}`;
-    window.open(url, "_blank", "noopener");
+    window.open(
+      `/admin/labour-register/print?siteId=${siteId}&month=${summaryMonth}&year=${summaryYear}`,
+      "_blank", "noopener"
+    );
   };
 
-  if (loading) return <CircularProgress />;
+  if (loading) return (
+    <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+      <CircularProgress />
+    </Box>
+  );
 
   return (
     <Box>
+      {/* ── Header ───────────────────────────────────────── */}
       <Stack
         direction={{ xs: "column", sm: "row" }}
         justifyContent="space-between"
         alignItems={{ xs: "flex-start", sm: "center" }}
         spacing={1.5}
-        sx={{ mb: 3 }}
+        sx={{ mb: 2.5 }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 800 }}>
-          Manage Site Labour
-        </Typography>
+        <Box>
+          <Typography variant="h6" fontWeight={800}>Manage Site Labour</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {siteLabour.length} assigned · Today&apos;s attendance
+          </Typography>
+        </Box>
         <Stack direction="row" spacing={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
           <Button
             variant="outlined"
             startIcon={<AddIcon />}
             onClick={() => setOpenCreate(true)}
-            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" }, fontWeight: 700 }}
+            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" }, fontWeight: 700, whiteSpace: "nowrap" }}
           >
             New Labour
           </Button>
@@ -303,308 +293,348 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
             variant="contained"
             startIcon={<AddIcon />}
             onClick={() => setOpenAssign(true)}
-            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" } }}
+            sx={{ borderRadius: 2, flex: { xs: 1, sm: "none" }, whiteSpace: "nowrap" }}
           >
             Assign Existing
           </Button>
         </Stack>
       </Stack>
 
-      <TableContainer
-        component={Card}
-        elevation={0}
-        sx={{ border: "1px solid", borderColor: "grey.200", borderRadius: 3 }}
-      >
-        <Table>
-          <TableHead sx={TABLE_HEAD_SX}>
-            <TableRow>
-              <TableCell sx={{ fontWeight: 700 }}>Labour Name</TableCell>
-              <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="center">
-                Daily Attendance
-              </TableCell>
-              <TableCell sx={{ fontWeight: 700 }} align="right">
-                Advance
-              </TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {siteLabour.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
-                  No labour assigned to this site.
-                </TableCell>
-              </TableRow>
-            ) : (
-              siteLabour.map((l) => (
-                <TableRow key={l._id}>
-                  <TableCell>
-                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                      {l.name}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      ₹{l.dailyWage} / day
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip label={l.type} size="small" variant="outlined" />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Stack direction="row" spacing={1} justifyContent="center">
-                      <IconButton
-                        onClick={() => handleStatusChange(l._id, "Present")}
-                        sx={{
-                          bgcolor:
-                            attendance[l._id] === "Present"
-                              ? alpha("#4caf50", 0.1)
-                              : "transparent",
-                          color:
-                            attendance[l._id] === "Present" ? "#4caf50" : "grey.400",
-                        }}
-                      >
-                        <PresentIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleStatusChange(l._id, "Half Day")}
-                        sx={{
-                          bgcolor:
-                            attendance[l._id] === "Half Day"
-                              ? alpha("#ff9800", 0.1)
-                              : "transparent",
-                          color:
-                            attendance[l._id] === "Half Day" ? "#ff9800" : "grey.400",
-                        }}
-                      >
-                        <HalfDayIcon />
-                      </IconButton>
-                      <IconButton
-                        onClick={() => handleStatusChange(l._id, "Absent")}
-                        sx={{
-                          bgcolor:
-                            attendance[l._id] === "Absent"
-                              ? alpha("#f44336", 0.1)
-                              : "transparent",
-                          color:
-                            attendance[l._id] === "Absent" ? "#f44336" : "grey.400",
-                        }}
-                      >
-                        <AbsentIcon />
-                      </IconButton>
-                    </Stack>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Tooltip title="Record Advance">
-                      <Button
+      {/* ── Today's Attendance Cards ──────────────────────── */}
+      {siteLabour.length === 0 ? (
+        <Paper
+          elevation={0}
+          sx={{ p: 4, textAlign: "center", borderRadius: 3, border: "1px dashed", borderColor: "grey.300" }}
+        >
+          <Typography variant="body2" color="text.secondary">
+            No labour assigned to this site yet.
+          </Typography>
+        </Paper>
+      ) : (
+        <Stack spacing={1.5}>
+          {siteLabour.map((l) => {
+            const status = attendance[l._id] || "Present";
+            return (
+              <Paper
+                key={l._id}
+                elevation={0}
+                sx={{
+                  p: 1.5,
+                  borderRadius: 2.5,
+                  border: "1px solid",
+                  borderColor: "grey.200",
+                  bgcolor: "background.paper",
+                }}
+              >
+                {/* Name row */}
+                <Stack direction="row" alignItems="center" spacing={1.5} mb={1.25}>
+                  <Avatar
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      bgcolor: alpha(ACCENT.primary, 0.15),
+                      color: ACCENT.primary,
+                      fontWeight: 800,
+                      fontSize: "0.8rem",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {initials(l.name)}
+                  </Avatar>
+                  <Box flex={1} minWidth={0}>
+                    <Typography variant="body2" fontWeight={700} noWrap>{l.name}</Typography>
+                    <Stack direction="row" spacing={0.75} alignItems="center">
+                      <Chip
+                        label={l.type}
                         size="small"
                         variant="outlined"
-                        color="warning"
-                        startIcon={<AdvanceIcon fontSize="small" />}
-                        onClick={() => openAdvanceDialog(l._id)}
-                        sx={{ fontWeight: 700, textTransform: "none" }}
+                        sx={{ height: 18, fontSize: "0.65rem", fontWeight: 700 }}
+                      />
+                      <Typography variant="caption" color="text.secondary">
+                        ₹{l.dailyWage.toLocaleString("en-IN")}/day
+                      </Typography>
+                    </Stack>
+                  </Box>
+                  <Tooltip title="Record Advance">
+                    <IconButton
+                      size="small"
+                      onClick={() => openAdvanceDialog(l._id)}
+                      sx={{
+                        color: ACCENT.warning,
+                        bgcolor: alpha(ACCENT.warning, 0.08),
+                        border: "1px solid",
+                        borderColor: alpha(ACCENT.warning, 0.25),
+                        borderRadius: 1.5,
+                        flexShrink: 0,
+                      }}
+                    >
+                      <AdvanceIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+
+                {/* Attendance toggle */}
+                <Stack direction="row" spacing={1}>
+                  {ATTENDANCE_OPTIONS.map((opt) => {
+                    const active = status === opt.value;
+                    return (
+                      <Button
+                        key={opt.value}
+                        size="small"
+                        onClick={() => handleStatusChange(l._id, opt.value)}
+                        startIcon={opt.icon}
+                        sx={{
+                          flex: 1,
+                          borderRadius: 2,
+                          fontWeight: 700,
+                          fontSize: "0.72rem",
+                          py: 0.6,
+                          border: "1.5px solid",
+                          ...(active
+                            ? { bgcolor: alpha(opt.color, 0.12), borderColor: opt.color, color: opt.color }
+                            : { bgcolor: "transparent", borderColor: "grey.300", color: "text.secondary" }),
+                          "&:hover": { bgcolor: alpha(opt.color, 0.08), borderColor: opt.color },
+                        }}
                       >
-                        Advance
+                        {opt.label}
                       </Button>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                    );
+                  })}
+                </Stack>
+              </Paper>
+            );
+          })}
+        </Stack>
+      )}
 
       {siteLabour.length > 0 && (
-        <Box sx={{ mt: 3, textAlign: "right" }}>
+        <Box sx={{ mt: 2.5, textAlign: "right" }}>
           <Button
             variant="contained"
-            size="large"
             disabled={submitting}
             onClick={saveAttendance}
             sx={{ px: 4, borderRadius: 2, fontWeight: 800 }}
           >
-            {submitting ? <CircularProgress size={24} /> : "Submit Attendance"}
+            {submitting ? <CircularProgress size={20} /> : "Submit Attendance"}
           </Button>
         </Box>
       )}
 
-      {/* Attendance Summary Section */}
-      <Box sx={{ mt: 5 }}>
-        <Divider sx={{ mb: 4 }} />
+      {/* ── Payroll Summary ───────────────────────────────── */}
+      <Box sx={{ mt: 4 }}>
+        <Divider sx={{ mb: 3 }} />
+
         <Stack
-          direction={{ xs: "column", md: "row" }}
+          direction={{ xs: "column", sm: "row" }}
           justifyContent="space-between"
-          alignItems={{ xs: "flex-start", md: "center" }}
+          alignItems={{ xs: "flex-start", sm: "center" }}
           spacing={1.5}
-          sx={{ mb: 3 }}
+          sx={{ mb: 2.5 }}
         >
           <Box>
-            <Typography variant="h6" sx={{ fontWeight: 800 }}>
-              Attendance &amp; Payroll Summary
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Earnings − Advances = Balance to pay.
+            <Typography variant="h6" fontWeight={800}>Attendance &amp; Payroll Summary</Typography>
+            <Typography variant="caption" color="text.secondary" fontWeight={600}>
+              Earnings − Advances = Balance to pay
             </Typography>
           </Box>
           <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-            <FormControl size="small" sx={{ minWidth: 140 }}>
+            <FormControl size="small" sx={{ minWidth: 130 }}>
               <Select value={summaryMonth} onChange={(e) => setSummaryMonth(Number(e.target.value))}>
                 {MONTHS.map((m, i) => (
-                  <MenuItem key={i + 1} value={i + 1}>
-                    {m}
-                  </MenuItem>
+                  <MenuItem key={i + 1} value={i + 1}>{m}</MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <Button variant="outlined" size="small" onClick={fetchSummary} disabled={loadingSummary}>
-              Refresh
-            </Button>
+            <IconButton
+              size="small"
+              onClick={fetchSummary}
+              disabled={loadingSummary}
+              sx={{ border: "1px solid", borderColor: "grey.300", borderRadius: 1.5 }}
+            >
+              <RefreshIcon fontSize="small" />
+            </IconButton>
             <Button
               variant="contained"
               size="small"
               startIcon={<PrintIcon />}
               onClick={openRegister}
-              sx={{ fontWeight: 700 }}
+              sx={{ fontWeight: 700, borderRadius: 2, whiteSpace: "nowrap" }}
             >
               Payment Register
             </Button>
           </Stack>
         </Stack>
 
-        <TableContainer
-          component={Paper}
-          variant="outlined"
-          sx={{ borderRadius: 3, overflow: "hidden" }}
-        >
-          <Table size="small">
-            <TableHead sx={TABLE_HEAD_SX}>
-              <TableRow>
-                <TableCell sx={{ fontWeight: 700 }}>Labour</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>P</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>HD</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>A</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>Total Days</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Earnings</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Advance</TableCell>
-                <TableCell align="right" sx={{ fontWeight: 700 }}>Balance</TableCell>
-                <TableCell align="center" sx={{ fontWeight: 700 }}>Action</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loadingSummary ? (
-                <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
-                    <CircularProgress size={20} />
-                  </TableCell>
-                </TableRow>
-              ) : summaryData.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} align="center" sx={{ py: 3 }}>
-                    No data for this month.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                summaryData.map((s) => {
-                  const bal = s.balance ?? (s.earnings - (s.advance || 0));
-                  return (
-                    <TableRow key={s.labour._id}>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                          {s.labour.name}
+        {loadingSummary ? (
+          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : summaryData.length === 0 ? (
+          <Paper
+            elevation={0}
+            sx={{ p: 3, textAlign: "center", borderRadius: 3, border: "1px dashed", borderColor: "grey.300" }}
+          >
+            <Typography variant="body2" color="text.secondary">No data for this month.</Typography>
+          </Paper>
+        ) : (
+          <Stack spacing={1.5}>
+            {summaryData.map((s) => {
+              const bal = s.balance ?? (s.earnings - (s.advance || 0));
+              return (
+                <Paper
+                  key={s.labour._id}
+                  elevation={0}
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2.5,
+                    border: "1px solid",
+                    borderColor: "grey.200",
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  {/* Name + action icons */}
+                  <Stack direction="row" alignItems="center" spacing={1} mb={1.25}>
+                    <Avatar
+                      sx={{
+                        width: 34,
+                        height: 34,
+                        bgcolor: alpha(ACCENT.info, 0.15),
+                        color: ACCENT.info,
+                        fontWeight: 800,
+                        fontSize: "0.75rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {initials(s.labour.name)}
+                    </Avatar>
+                    <Box flex={1} minWidth={0}>
+                      <Typography variant="body2" fontWeight={700} noWrap>{s.labour.name}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {s.labour.type} · ₹{s.labour.dailyWage.toLocaleString("en-IN")}/day
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={0.5} flexShrink={0}>
+                      <Tooltip title="View Calendar">
+                        <IconButton
+                          size="small"
+                          onClick={() => setCalendarLabour(s.labour)}
+                          sx={{
+                            color: ACCENT.info,
+                            bgcolor: alpha(ACCENT.info, 0.08),
+                            border: "1px solid",
+                            borderColor: alpha(ACCENT.info, 0.2),
+                            borderRadius: 1.5,
+                          }}
+                        >
+                          <CalendarIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Add Advance">
+                        <IconButton
+                          size="small"
+                          onClick={() => openAdvanceDialog(s.labour._id)}
+                          sx={{
+                            color: ACCENT.warning,
+                            bgcolor: alpha(ACCENT.warning, 0.08),
+                            border: "1px solid",
+                            borderColor: alpha(ACCENT.warning, 0.2),
+                            borderRadius: 1.5,
+                          }}
+                        >
+                          <AdvanceIcon sx={{ fontSize: 16 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Stack>
+                  </Stack>
+
+                  {/* Attendance stats */}
+                  <Stack direction="row" spacing={1} mb={1.25}>
+                    {[
+                      { label: "Present", val: s.present, color: ACCENT.success },
+                      { label: "Half Day", val: s.halfDay, color: ACCENT.warning },
+                      { label: "Absent", val: s.absent, color: ACCENT.error },
+                      { label: "Total Days", val: s.totalDays, color: ACCENT.info },
+                    ].map((stat) => (
+                      <Box
+                        key={stat.label}
+                        sx={{
+                          flex: 1,
+                          textAlign: "center",
+                          py: 0.75,
+                          borderRadius: 2,
+                          bgcolor: alpha(stat.color, 0.07),
+                          border: "1px solid",
+                          borderColor: alpha(stat.color, 0.2),
+                        }}
+                      >
+                        <Typography variant="body2" fontWeight={800} color={stat.color} lineHeight={1.2}>
+                          {stat.val}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {s.labour.type}
+                        <Typography variant="caption" color="text.secondary" lineHeight={1.2} display="block"
+                          sx={{ fontSize: "0.6rem" }}>
+                          {stat.label}
                         </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={s.present} size="small" color="success" sx={{ fontWeight: 700, height: 20 }} />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={s.halfDay} size="small" color="warning" sx={{ fontWeight: 700, height: 20 }} />
-                      </TableCell>
-                      <TableCell align="center">
-                        <Chip label={s.absent} size="small" color="error" sx={{ fontWeight: 700, height: 20 }} />
-                      </TableCell>
-                      <TableCell align="center" sx={{ fontWeight: 600 }}>
-                        {s.totalDays}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2" sx={{ fontWeight: 800, color: "primary.main" }}>
-                          {formatINRFull(s.earnings)}
+                      </Box>
+                    ))}
+                  </Stack>
+
+                  {/* Financials */}
+                  <Stack
+                    direction="row"
+                    divider={<Box sx={{ width: "1px", bgcolor: "grey.200", flexShrink: 0 }} />}
+                    sx={{ border: "1px solid", borderColor: "grey.200", borderRadius: 2, overflow: "hidden" }}
+                  >
+                    {[
+                      { label: "Earnings", val: s.earnings, color: ACCENT.success },
+                      { label: "Advance", val: s.advance || 0, color: ACCENT.warning },
+                      { label: "Balance", val: bal, color: bal >= 0 ? ACCENT.success : ACCENT.error },
+                    ].map((fin) => (
+                      <Box key={fin.label} sx={{ flex: 1, textAlign: "center", py: 0.75, px: 0.5 }}>
+                        <Typography variant="body2" fontWeight={800} color={fin.color} lineHeight={1.2}
+                          sx={{ fontSize: "0.8rem" }}>
+                          {formatINRFull(fin.val)}
                         </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: "warning.dark" }}>
-                          {formatINRFull(s.advance || 0)}
+                        <Typography variant="caption" color="text.secondary" lineHeight={1.2} display="block"
+                          sx={{ fontSize: "0.6rem" }}>
+                          {fin.label}
                         </Typography>
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2" sx={{ fontWeight: 900, color: bal >= 0 ? "success.main" : "error.main" }}>
-                          {formatINRFull(bal)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell align="center">
-                        <Stack direction="row" spacing={0.5} justifyContent="center">
-                          <Tooltip title="View calendar">
-                            <IconButton
-                              size="small"
-                              color="primary"
-                              onClick={() => setCalendarLabour(s.labour)}
-                            >
-                              <CalendarIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip title="Add Advance">
-                            <IconButton
-                              size="small"
-                              color="warning"
-                              onClick={() => openAdvanceDialog(s.labour._id)}
-                            >
-                              <AdvanceIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block", fontStyle: "italic" }}>
-          * P: Present, HD: Half Day, A: Absent. Advances are scoped to this site in the selected month.
+                      </Box>
+                    ))}
+                  </Stack>
+                </Paper>
+              );
+            })}
+          </Stack>
+        )}
+
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1.5, display: "block", fontStyle: "italic" }}>
+          Advances scoped to this site in the selected month.
         </Typography>
       </Box>
 
-      {/* Create Labour Dialog */}
+      {/* ── Create Labour Dialog ──────────────────────────── */}
       <Dialog open={openCreate} onClose={() => !creating && setOpenCreate(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 800 }}>Create New Labour</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              fullWidth size="small" label="Full Name *"
+            <TextField fullWidth size="small" label="Full Name *"
               value={createForm.name}
               onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
             />
-            <TextField
-              fullWidth size="small" label="Mobile *" type="tel"
+            <TextField fullWidth size="small" label="Mobile *" type="tel"
               value={createForm.mobile}
               onChange={(e) => setCreateForm({ ...createForm, mobile: e.target.value })}
             />
             <FormControl fullWidth size="small">
               <InputLabel>Type</InputLabel>
-              <Select
-                label="Type"
-                value={createForm.type}
-                onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}
-              >
+              <Select label="Type" value={createForm.type}
+                onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}>
                 {["Mason", "Carpenter", "Helper", "Electrician", "Plumber", "Other"].map((t) => (
                   <MenuItem key={t} value={t}>{t}</MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <TextField
-              fullWidth size="small" label="Daily Wage ₹ *" type="number"
+            <TextField fullWidth size="small" label="Daily Wage ₹ *" type="number"
               inputProps={{ inputMode: "decimal" }}
               value={createForm.dailyWage}
               onChange={(e) => setCreateForm({ ...createForm, dailyWage: e.target.value })}
@@ -619,7 +649,7 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
         </DialogActions>
       </Dialog>
 
-      {/* Assign Labour Dialog */}
+      {/* ── Assign Labour Dialog ──────────────────────────── */}
       <Dialog open={openAssign} onClose={() => setOpenAssign(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 800 }}>Assign Global Labour</DialogTitle>
         <DialogContent>
@@ -628,17 +658,12 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
           </Typography>
           <FormControl fullWidth>
             <InputLabel>Select Labour</InputLabel>
-            <Select
-              value={selectedToAssign}
-              label="Select Labour"
-              onChange={(e) => setSelectedToAssign(e.target.value)}
-            >
+            <Select value={selectedToAssign} label="Select Labour"
+              onChange={(e) => setSelectedToAssign(e.target.value)}>
               {allLabour
                 .filter((l) => !siteLabour.find((sl) => sl._id === l._id))
                 .map((l) => (
-                  <MenuItem key={l._id} value={l._id}>
-                    {l.name} ({l.type})
-                  </MenuItem>
+                  <MenuItem key={l._id} value={l._id}>{l.name} ({l.type})</MenuItem>
                 ))}
             </Select>
           </FormControl>
@@ -651,7 +676,7 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
         </DialogActions>
       </Dialog>
 
-      {/* Calendar Dialog */}
+      {/* ── Calendar Dialog ───────────────────────────────── */}
       {calendarLabour && (
         <AttendanceCalendarDialog
           open={Boolean(calendarLabour)}
@@ -663,58 +688,40 @@ export default function LabourTab({ siteId, builderId }: { siteId: string; build
         />
       )}
 
-      {/* Advance Dialog */}
+      {/* ── Advance Dialog ────────────────────────────────── */}
       <Dialog open={openAdvance} onClose={() => !advanceSaving && setOpenAdvance(false)} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 800 }}>Record Advance</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="Amount ₹ *"
+            <TextField fullWidth size="small" type="number" label="Amount ₹ *"
               inputProps={{ inputMode: "decimal" }}
               value={advanceForm.amount}
               onChange={(e) => setAdvanceForm({ ...advanceForm, amount: e.target.value })}
             />
-            <TextField
-              fullWidth
-              size="small"
-              type="date"
-              label="Date"
+            <TextField fullWidth size="small" type="date" label="Date"
               InputLabelProps={{ shrink: true }}
               value={advanceForm.date}
               onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })}
             />
             <FormControl fullWidth size="small">
               <InputLabel>Mode</InputLabel>
-              <Select
-                label="Mode"
-                value={advanceForm.paymentMode}
+              <Select label="Mode" value={advanceForm.paymentMode}
                 onChange={(e) =>
                   setAdvanceForm({ ...advanceForm, paymentMode: e.target.value as typeof advanceForm.paymentMode })
-                }
-              >
+                }>
                 {["Cash", "UPI", "Bank", "Cheque", "Other"].map((m) => (
-                  <MenuItem key={m} value={m}>
-                    {m}
-                  </MenuItem>
+                  <MenuItem key={m} value={m}>{m}</MenuItem>
                 ))}
               </Select>
             </FormControl>
-            <TextField
-              fullWidth
-              size="small"
-              label="Note"
+            <TextField fullWidth size="small" label="Note"
               value={advanceForm.note}
               onChange={(e) => setAdvanceForm({ ...advanceForm, note: e.target.value })}
             />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setOpenAdvance(false)} disabled={advanceSaving}>
-            Cancel
-          </Button>
+          <Button onClick={() => setOpenAdvance(false)} disabled={advanceSaving}>Cancel</Button>
           <Button variant="contained" color="warning" onClick={saveAdvance} disabled={advanceSaving}>
             {advanceSaving ? <CircularProgress size={18} color="inherit" /> : "Record"}
           </Button>
